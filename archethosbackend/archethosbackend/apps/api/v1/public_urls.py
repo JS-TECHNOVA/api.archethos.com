@@ -2,6 +2,11 @@
 
 from django.urls import path
 
+from archethosbackend.apps.pages.public_views import (
+    PageAggregateAPIView,
+    PublicCompanyAPIView,
+)
+
 from archethosbackend.apps.content.public_views import (
     PublicBlogCategoryListAPIView,
     PublicBlogPostDetailAPIView,
@@ -15,6 +20,11 @@ from archethosbackend.apps.content.public_views import (
 )
 
 urlpatterns = [
+    # The aggregate endpoint: one request renders a whole page.
+    # <path:slug> not <slug:slug> - page slugs mirror frontend routes, which
+    # nest ("legal/privacy"), and the slug converter does not match "/".
+    path("pages/<path:slug>/", PageAggregateAPIView.as_view(), name="page-aggregate"),
+    path("company/", PublicCompanyAPIView.as_view(), name="company"),
     path("projects/", PublicProjectListAPIView.as_view(), name="project-list"),
     path(
         "projects/<slug:slug>/",

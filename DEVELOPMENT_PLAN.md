@@ -796,8 +796,9 @@ prefetches. So:
      CTASection.filter(pk__in=[…]).select_related("background_media")         1
 ```
 
-**≈14 queries, bounded by the number of distinct section types present — not by content
-volume.** A page with 40 gallery images costs the same as one with 4. Pinned with
+**Measured at 16 queries** for an 8-section page: 2 setup + 1 per simple type + 2 per
+collection type. Bounded by the number of distinct section *types* present, not by content
+volume. A page with 40 gallery images costs the same as one with 4. Pinned with
 `assertNumQueries` so a future serializer change cannot silently regress it.
 
 `ETag` + `Cache-Control: public, max-age=60, stale-while-revalidate=300` derived from the max
@@ -904,7 +905,7 @@ page. The `/legal/*` pages are composed from a `RichTextSection`.
 | 7 | `Section` MTI base + concrete sections + `SECTION_REGISTRY` + section CRUD | **done** |
 | 8 | Section items + atomic bulk reorder | **done** |
 | 9 | `Page` + `PageSection` + composition, visibility, reorder APIs | **done** |
-| 10 | Public aggregate `/pages/{slug}/` with batched resolution + `assertNumQueries` | |
+| 10 | Public aggregate `/pages/{slug}/` with batched resolution + `assertNumQueries` | **done** |
 | 11 | PostgreSQL search + `Enquiry` + `Company` | |
 | 12 | Audit, Django Admin, OpenAPI polish, seed command, deployment notes | |
 

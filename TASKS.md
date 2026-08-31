@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-9 complete · Phase 10 (aggregate API) next · 207 tests passing
+**Progress:** Phases 1-10 complete · Phase 11 (search, enquiries) next · 234 tests passing
 
 **Standing constraints — apply to every phase**
 
@@ -300,20 +300,35 @@ _None._
 - `Company` inject fields are superuser-only, tested both ways; JSON fields have
   shape validators.
 
-## Phase 10 — Public aggregate API
+## Phase 10 — Public aggregate API `[x] COMPLETE`
 
-- [ ] `GET /api/v1/public/pages/{slug}/`
-- [ ] Batched per-type resolution driven by `SECTION_REGISTRY.public_queryset`
+- [x] `GET /api/v1/public/pages/{slug}/`
+- [x] Batched per-type resolution driven by `SECTION_REGISTRY.public_queryset`
       (**not** `InheritanceManager`) - plan §13
-- [ ] Only `is_visible=True`, ordered by `PageSection.order`
-- [ ] Each entry emits `id` / `key` / `type` / `data`; `internal_label` never exposed
-- [ ] Unpublished page -> 404; unknown slug -> 404
-- [ ] ETag + `Cache-Control` from max `updated_at`
-- [ ] **`assertNumQueries` test** pinning the query count so it cannot silently regress
-- [ ] Test: query count is flat as gallery items scale from 4 to 40
-- [ ] Test: draft master content never surfaces inside a section
+- [x] Only `is_visible=True`, ordered by `PageSection.order`
+- [x] Each entry emits `id` / `key` / `type` / `data`; `internal_label` never exposed
+- [x] Unpublished page -> 404; unknown slug -> 404
+- [x] ETag + `Cache-Control` from max `updated_at`
+- [x] **`assertNumQueries` test** pinning the query count so it cannot silently regress
+- [x] Test: query count is flat as gallery items scale from 4 to 40
+- [x] Test: draft master content never surfaces inside a section
 
 ---
+
+**Phase 10 notes**
+
+- **Measured: 16 queries** for an 8-section homepage, not the 18 estimated.
+  The shape is 2 setup + 1 per simple type + 2 per collection type. Three CTAs on
+  one page cost **one** batch, not three. Pinned with `assertNumQueries`.
+- Flatness proven directly: a page with 40 gallery images, 30 FAQs and 25 projects
+  costs the same 16 queries as one with 4/3/3.
+- `InheritanceManager` was rejected for this: its all-subclass LEFT JOIN is slower
+  *and* cannot apply per-type prefetches, which is what makes batching work.
+- Unresolvable section types are logged and skipped rather than 500ing the page.
+- ETag covers the whole graph, so editing a shared CTA invalidates every page
+  composing it. Verified 304 over real HTTP.
+- Verified live: `/pages/legal/privacy/` resolves through `<path:slug>`; draft
+  pages 404; CORS headers correct for `localhost:3000`.
 
 ## Phase 11 — Search, enquiries, company
 
