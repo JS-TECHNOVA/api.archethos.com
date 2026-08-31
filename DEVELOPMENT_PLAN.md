@@ -1,10 +1,11 @@
 # Archethos Headless CMS — Architecture & Development Plan
 
 > Backend: Django + Django REST Framework + PostgreSQL
-> Frontend: Next.js (separate app — **not** built here)
+> Frontend: Next.js at `archethos-nextjs/archethos` — **not built here, and never modified
+> from this repo.** Read for reference only.
 > Auth: JWT in HttpOnly cookies, refresh rotation + blacklist
 >
-> Status: **approved Phase 1 output**. This is the single source of truth for the build.
+> Status: **approved**. Single source of truth for the build.
 > Update this document when a decision changes; update `TASKS.md` as work completes.
 
 ---
@@ -13,15 +14,12 @@
 
 | Item | Value |
 |---|---|
-| Django | 6.1 — verified working with simplejwt 5.5.1 + `token_blacklist` (Phase 2) |
+| Django | 6.1 — verified working with simplejwt 5.5.1 + `token_blacklist` |
 | DRF | 3.18 |
-| DB | PostgreSQL 17.11 via Docker on host port **5433**; `psycopg` 3.3.4 |
-| Auth | `djangorestframework-simplejwt` 5.5.1 + `token_blacklist` |
-| Already installed | `django-cors-headers`, `django-filter`, `django-environ`, `drf-spectacular`, `django-ratelimit`, `django-extensions`, `Pillow` |
+| DB | PostgreSQL 17.11 via Docker on host port **5433**; psycopg 3.3.4 |
+| Installed | `django-cors-headers`, `django-filter`, `django-environ`, `drf-spectacular`, `django-ratelimit`, `django-extensions`, `Pillow` |
 | To install | (prod) `gunicorn`, `whitenoise`; (test) `pytest-django`, `factory-boy` |
-| Existing code | Phase 2 complete: `apps/` structure, split settings, API infrastructure. **No migrations run yet** — the custom User must land in the first one. |
-
-No migrations exist, so the custom user model and the `apps/` restructure are both still free.
+| Progress | Phases 1–4 complete — foundation, cookie JWT auth, users/groups/permissions. 62 tests passing. |
 
 ---
 
@@ -31,153 +29,158 @@ Reviewed and approved. Do not re-litigate without updating this section.
 
 ### 2.1 Media is a ForeignKey, serialized as a relative path
 
-Content models store `ForeignKey(MediaAsset, on_delete=PROTECT)`. The API reads and writes the
-**relative path**. No CDN domain is ever persisted.
+Content and section models store `ForeignKey(MediaAsset, on_delete=PROTECT)`. The API reads
+and writes the **relative path**. No CDN domain is ever persisted.
 
 ```
-DB        Project.featured_image_id = 42
-API out   "featured_image": "/media/uploads/abc123-house.webp"
-API in    accepts 42 (id) OR "/media/uploads/abc123-house.webp"
+DB        HeroSection.background_media_id = 42
+API out   "background_media": "/media/uploads/abc123-hero.webp"
+API in    accepts 42 (id) OR "/media/uploads/abc123-hero.webp"
 Frontend  CDN_BASE + path
 ```
 
-A single `MediaReferenceField` (`apps/api/fields.py`) implements both directions and validates
-existence. Every media field on every model uses it. Where the frontend needs `alt_text` or
-dimensions, the serializer also emits `<field>_detail`:
+A single `MediaReferenceField` implements both directions and validates existence. This gives
+delete protection, a working "where is this image used?" query, and validation for free —
+none of which a bare path string can provide. The CDN-independence requirement is about the
+payload, not the storage layer, and is fully satisfied.
 
-```json
-"featured_image": "/media/uploads/abc123-house.webp",
-"featured_image_detail": { "id": 42, "alt_text": "Villa exterior", "width": 2400, "height": 1600 }
+### 2.2 Pages compose sections dynamically — no fixed section slots
+
+**Supersedes the original fixed-FK design.** Pages do not own section content; they own an
+ordered composition of sections.
+
+```
+Page ──1:N──> PageSection ──N:1──> Section (concrete MTI base)
+                                      │
+              ┌───────────────────────┼───────────────────────┐
+              ▼                       ▼                       ▼
+        HeroSection             FAQSection            GallerySection …
 ```
 
-**Why:** referential integrity, delete protection, and a working "where is this image used?"
-query — none of which a bare path string can provide. The CDN-independence requirement is about
-the payload, not the storage layer, and is fully satisfied.
+Why this replaced `HomePage.hero_section = FK(...)`:
 
-### 2.2 Page → section is a nullable ForeignKey
+| | Fixed FK slots | Page → PageSection → Section |
+|---|---|---|
+| Add a page | new model + migration + serializer + route | insert a row |
+| Reorder sections | migration | one PATCH |
+| Same type twice on a page (`top_cta`, `bottom_cta`) | **impossible** — the field is singular | natural |
+| Aggregate API | one serializer per page | one endpoint, registry-driven |
 
-`ForeignKey(null=True, blank=True, on_delete=SET_NULL)` for **every** page→section slot,
-including heroes. A page has at most one of each section type (the field is singular), a section
-instance may be shared across pages, and deleting a section blanks the slot rather than
-destroying the page. `related_name` answers "which pages use this section?" — the admin UI must
-show that before allowing a delete.
+The frontend routes settled it: `/locations`, `/legal/privacy`, `/legal/terms` and `/gallery`
+were four pages the fixed design had not anticipated, each needing new code to support.
 
 ### 2.3 `order` is display-order only and appears in no constraint
 
 ```python
 order = models.PositiveIntegerField(default=0)
-
 class Meta:
     ordering = ["order", "id"]
 ```
 
-Duplicate `order` values are tolerated; `id` breaks ties. The **only** constraint on an item
-model is `UniqueConstraint(section, <content>)`, preventing the same FAQ/Project/Service being
-added twice to one section.
+Duplicates tolerated, `id` breaks ties. Applies to `PageSection.order` and every section-item
+model.
 
-Consequence: bulk reorder is a plain `transaction.atomic()` + `bulk_update` with no
-deferred-constraint gymnastics.
+**`unique(page, order)` is deliberately NOT created.** It would deadlock the atomic bulk
+reorder it is meant to protect: swapping items 1↔2 violates the constraint on the very first
+UPDATE inside the transaction. `unique(page, section_key)` **is** created — it stops two
+sections claiming the same slot on a page, and never conflicts with reordering.
 
 ### 2.4 Audit logging records who changed what — nothing else
 
-Dropped: `ip_address`, `user_agent`, `request_method`, `request_path`, the contextvar
-middleware, and the model-level `from_db` snapshot machinery.
+No `ip_address`, `user_agent`, `request_method`, `request_path`; no context middleware; no
+model-level snapshot machinery.
 
-Written by **one** `AuditLogMixin` on `AdminModelViewSet` (`perform_create` / `perform_update`
-snapshots the instance before saving / `perform_destroy`), plus two explicit calls in the login
-and logout views. No audit code in any individual view.
+One `AuditLogMixin` on the base admin view classes (`perform_create` / `perform_update` with a
+before-snapshot / `perform_destroy`), plus explicit calls for LOGIN and LOGOUT. No audit code
+in any individual view. Because it attaches to view base classes rather than to models, it can
+land at any point without retrofitting anything.
 
-**Accepted trade-off:** Django Admin edits, shell edits, and data migrations go unlogged.
-Acceptable — the REST API is the CMS.
+**Accepted trade-off:** Django Admin edits, shell edits and data migrations go unlogged. The
+REST API is the CMS.
 
-A field denylist (`password`, `token`, `secret`, `key`, `session`) strips sensitive values from
+A denylist (`password`, `token`, `secret`, `key`, `session`) strips sensitive values from
 `changes` before writing.
 
 ### 2.5 Response envelope is infrastructure, not per-view code
 
 - `EnvelopeJSONRenderer` — wraps into `{success, message, data}`, hoists pagination to a
-  top-level `pagination` key, passes `204` and the schema/docs endpoints through untouched.
-- `envelope_exception_handler` — `{success: false, message, errors, code}`.
-- `EnvelopePageNumberPagination` — emits `{page, page_size, total_items, total_pages, has_next,
-  has_previous}`.
-- drf-spectacular postprocessing hooks so the OpenAPI schema documents the wrapped shape.
+  top-level `pagination` key, passes `204` and the schema endpoints through untouched.
+- `envelope_exception_handler` — `{success, message, errors, code}`; maps `ProtectedError` to
+  **409 naming the referencing objects**, which is what makes `on_delete=PROTECT` usable from
+  a UI rather than a 500.
+- `EnvelopePageNumberPagination` — the metadata shape the admin data tables consume.
 
-### 2.6 One publish flag, not three
+### 2.6 One flag, not many
 
-`PublishableModel` abstract, applied to **Project, Service, BlogPost, FAQ**:
+`PublishableModel` abstract, applied to **Project, Service, BlogPost, FAQ, Counter**:
 
 ```python
 status       = DRAFT | PUBLISHED | ARCHIVED   # indexed
-published_at = DateTimeField(null=True)       # set on first transition to PUBLISHED
+published_at = DateTimeField(null=True)       # set on first publish
 
-def live(self):   # PublishableQuerySet
-    return self.filter(status=PUBLISHED).filter(
-        Q(published_at__isnull=True) | Q(published_at__lte=timezone.now())
-    )
+.live() = status=PUBLISHED AND (published_at IS NULL OR published_at <= now())
 ```
 
-**Removed:** `is_published` (Project), `is_active` + `is_published` (Service), `is_active`
-(FAQ), `is_active` (sections — a section not attached to a page simply does not render).
-**Retained:** `Project.is_featured`, which is curation, not publishing.
+Removed: every `is_published` / `is_active` variant. Retained: `Project.is_featured`, which is
+curation rather than publishing.
 
-### 2.8 Class-based views only — never ViewSets
-
-Every endpoint is a DRF generic class-based view (`ListCreateAPIView`,
-`RetrieveUpdateAPIView`, `APIView`) wired with explicit `path()` entries.
-`ViewSet`, `ModelViewSet`, `@action` and DRF routers are not used anywhere.
-
-Consequences, all of them deliberate:
-
-* Every URL is written out in a `urls.py`, so the route list is readable without
-  mentally expanding a router.
-* One class per operation-group rather than one class per resource. A resource is
-  typically two classes (list+create, detail) plus one small class per custom
-  operation.
-* Custom operations that would have been `@action` become their own view class -
-  e.g. `BlogPublishAPIView`, `UserDeactivateAPIView`, `SectionItemReorderAPIView`.
-* `get_serializer_class()` dispatches on `request.method` instead of on
-  `self.action`.
-* Generic views still provide `perform_create` / `perform_update` /
-  `perform_destroy`, so the audit hooks in §2.4 attach unchanged.
-
-### 2.7a Django's built-in User (no custom user model)
-
-CMS accounts exist only so staff can edit website content — there is no public
-registration, no customer accounts, no profile data beyond a name. Django's
-`auth.User` already carries everything `/auth/me/` needs, so no custom user model
-is introduced.
-
-Two consequences handled explicitly:
-
-* `auth.User` keys on `username`, but login is by email. An `EmailBackend`
-  resolves email -> user, and `username` is auto-filled from the email on creation.
-* `auth.User.email` is **not unique**, which would make email login ambiguous. A
-  case-insensitive partial unique index is added in
-  `accounts/migrations/0001_user_email_unique.py`:
-
-  ```sql
-  CREATE UNIQUE INDEX auth_user_email_ci_unique
-  ON auth_user (LOWER(email)) WHERE email <> '';
-  ```
-
-  Enforced in the database, so it holds for the API, Django Admin, the shell and
-  `createsuperuser` alike. Blank emails are excluded so they do not collide.
-
-Trade-off accepted: migrating to a custom user model later is painful. Given the
-narrow scope (staff editors only), that is unlikely to be needed.
-
-### 2.7b Logout cannot revoke an already-issued access token
-
-Logout blacklists the refresh token and deletes both cookies. The access token is
-stateless and stays valid until it expires. Revoking it would require a database
-lookup on every request, which defeats the point of stateless JWT. The mitigation
-is the short 15-minute lifetime plus cookie deletion — the browser no longer holds
-the token to send.
+Consistently, **`Section` has no `is_active`.** Visibility lives on `PageSection.is_visible`,
+where it means something specific — "hidden on this page". A section attached to no page
+already renders nowhere, so a second global flag earns nothing.
 
 ### 2.7 No refresh-token grace window
 
-Expired / invalid / blacklisted / missing refresh token → `401`, both cookies cleared. The
-frontend re-authenticates. Concurrent-refresh races are not handled.
+Expired / invalid / blacklisted / missing refresh token → `401`, both cookies cleared.
+Concurrent-refresh races are not handled.
+
+### 2.7a Django's built-in User — no custom user model
+
+CMS accounts exist only so staff can edit website content: no public registration, no customer
+accounts. `auth.User` carries everything `/auth/me/` needs.
+
+* `auth.User` keys on `username` but login is by email → `EmailBackend` resolves email→user,
+  and runs the hasher on unknown emails so timing does not leak which addresses exist.
+* `auth.User.email` is not unique, which would make email login ambiguous → a case-insensitive
+  partial unique index enforces it **in the database**, so it holds for the API, Django Admin,
+  the shell and `createsuperuser` alike.
+
+### 2.7b Logout cannot revoke an already-issued access token
+
+Logout blacklists the refresh token and deletes both cookies. The access token is stateless
+and stays valid until it expires; revoking it would need a DB lookup on every request, which
+defeats stateless JWT. Mitigated by the 15-minute lifetime plus cookie deletion.
+
+### 2.8 Class-based views only — never ViewSets
+
+Every endpoint is a DRF generic class-based view (`ListCreateAPIView`, `RetrieveUpdateAPIView`,
+`APIView`) wired with explicit `path()` entries. `ViewSet`, `ModelViewSet`, `@action` and DRF
+routers are not used anywhere.
+
+* Every URL is written out, so the route list is readable without expanding a router.
+* Operations that would have been `@action` get their own class — `UserDeactivateAPIView`,
+  `SectionItemReorderAPIView`, `PageSectionReorderAPIView`.
+* `get_serializer_class()` dispatches on `request.method`, not `self.action`.
+
+### 2.9 Multi-table inheritance for the Section hierarchy
+
+`Section` is a **concrete** parent so `PageSection.section` can be a real ForeignKey with real
+integrity. Concrete section models subclass it (Django MTI).
+
+Alternatives rejected:
+
+| Approach | Why not |
+|---|---|
+| `GenericForeignKey` | no DB-level FK, no `PROTECT`, no cascade — the integrity is imaginary |
+| One nullable FK per type on `PageSection` | ~12 sparse columns plus a CHECK constraint to enforce exactly-one |
+| JSONField blob | loses typing, validation and queryability — the thing this CMS exists to avoid |
+
+MTI's one real cost is resolving a `Section` row to its concrete subclass. That is solved by
+**batching per type** (§13), not by `InheritanceManager`, whose all-subclass LEFT JOIN is
+slower and — the deciding point — cannot apply the different prefetches each section type
+needs.
+
+`section_type` is set automatically in each concrete model's `save()` and never accepted from
+the client, so it cannot drift from the actual class.
 
 ---
 
@@ -185,41 +188,49 @@ frontend re-authenticates. Concurrent-refresh races are not handled.
 
 ```
 archethos-backend/
-├── .env                     (gitignored)   .env.example
-├── docker-compose.yml       PostgreSQL 17 (the only containerised service)
-├── requirements/            base.txt  dev.txt  prod.txt
-├── DEVELOPMENT_PLAN.md      TASKS.md
+├── .env  .env.example  docker-compose.yml  requirements/
+├── DEVELOPMENT_PLAN.md  TASKS.md
 ├── manage.py
 └── archethosbackend/
     ├── settings/            base.py  development.py  production.py  test.py
     ├── urls.py  wsgi.py  asgi.py
     └── apps/
         ├── core/            abstract models, mixins, validators, slug utils
-        ├── accounts/        User, UserManager, cookie JWT, auth + user/group/perm APIs
+        ├── accounts/        auth, cookie JWT, user/group/permission APIs   [DONE]
         ├── audit/           AuditLog, AuditLogMixin, read-only API
-        ├── media_library/   MediaAsset, upload pipeline, YouTube parsing, validation
+        ├── media_library/   MediaAsset, upload pipeline, YouTube parsing
+        │
+        │   ── master content, one app per content type ──
         ├── projects/        Project, ProjectGalleryItem
         ├── services/        Service
         ├── blogs/           BlogPost, BlogCategory
         ├── faqs/            FAQ
-        ├── sections/        all strongly typed sections + item models
-        ├── pages/           HomePage, AboutPage, ContactPage, listing pages, Company
+        ├── counters/        Counter
+        │
+        │   ── presentation ──
+        ├── sections/        Section MTI base, concrete sections, item models,
+        │                    SECTION_REGISTRY
+        ├── pages/           Page, PageSection
+        │
+        │   ── site-wide ──
+        ├── company/         Company singleton
         ├── enquiries/       Enquiry
-        └── api/             renderer, exception handler, pagination, base viewsets,
-                             SectionItemViewSet, permission classes, MediaReferenceField,
-                             v1 routers
+        └── api/             renderer, exception handler, pagination,
+                             generic CBV base classes, permissions,
+                             MediaReferenceField, v1 routes
 ```
 
 Each `AppConfig` sets `name = "archethosbackend.apps.projects"` and `label = "projects"` so
-permission codenames stay clean (`projects.add_project`).
+permission codenames stay flat (`projects.add_project`).
 
-The existing root-level `medialibrary` app folds into `apps/media_library/` — safe, it has no
-models and no migrations.
+Two structural choices worth stating:
 
-`sections` is deliberately **one** app: section models are cross-cutting and mutually
-referential, and splitting them creates import cycles for no isolation benefit. Internally split
-into `models/hero.py`, `models/collections.py`, `models/cta.py`, re-exported from
-`models/__init__.py`.
+* **`sections` is one app.** Section models share the MTI base and are mutually referential;
+  splitting them creates import cycles for no isolation benefit. Internally split into
+  `models/base.py`, `models/hero.py`, `models/collections.py`, `models/cta.py`.
+* **`company` is its own app, not part of `pages`.** `Company` is site-wide configuration, not
+  a page, and it deserves its own permission (`company.change_company`) so "may edit site
+  settings" can be granted independently of "may edit pages".
 
 ---
 
@@ -227,155 +238,199 @@ into `models/hero.py`, `models/collections.py`, `models/cta.py`, re-exported fro
 
 | Abstract | Fields / purpose |
 |---|---|
-| `TimeStampedModel` | `created_at`, `updated_at` (timezone-aware) |
-| `SEOModel` | `meta_title`, `meta_description`, `meta_keywords`, `og_title`, `og_description`, `og_image` (FK `"media_library.MediaAsset"`, lazy string ref), `canonical_url`, `robots_index`, `robots_follow` |
-| `SluggedModel` | `title`, `slug` (unique, indexed, auto-generated with collision suffix) |
+| `TimeStampedModel` | `created_at`, `updated_at` |
+| `SEOModel` | `meta_title`, `meta_description`, `meta_keywords`, `og_title`, `og_description`, `og_image` (FK MediaAsset), `canonical_url`, `robots_index`, `robots_follow` |
+| `SluggedModel` | `title`, `slug` — unique, generated once, never regenerated (published URLs must not break because someone fixed a typo) |
 | `PublishableModel` | `status`, `published_at`, `PublishableQuerySet.live()` |
 | `OrderedItemModel` | `order`, `Meta.ordering = ["order", "id"]` |
-| `SingletonModel` | pinned pk, `CheckConstraint`, `load()` classmethod |
-
-`SEOModel.og_image` uses a lazy string reference, so `core` carries no import-time dependency on
-`media_library`.
+| `SingletonModel` | pinned pk + `CheckConstraint` + `load()` — used only by `Company` |
 
 ---
 
 ## 5. Model catalogue
 
-### 5.1 accounts
+### 5.1 accounts — **DONE**
 
-Uses Django's built-in **`auth.User`** unchanged (see §2.7a) — no model of its own.
-The app contributes behaviour, not tables:
-
-| Module | Purpose |
-|---|---|
-| `backends.EmailBackend` | resolves email -> user for login; constant-time on unknown emails |
-| `authentication.CookieJWTAuthentication` | reads the access token from the cookie, enforces CSRF on unsafe methods, accepts a Bearer fallback |
-| `cookies.py` | `set_auth_cookies` / `clear_auth_cookies`, env-aware |
-| `schema.py` | registers the `cookieAuth` OpenAPI security scheme |
-| `migrations/0001` | the case-insensitive unique email index |
+Uses `auth.User` unchanged; contributes behaviour, not tables: `EmailBackend`,
+`CookieJWTAuthentication`, cookie helpers, the `cookieAuth` OpenAPI scheme, and the
+case-insensitive unique email index. Role definitions live in `groups.py`, applied by the
+bootstrap migration and refreshed by `manage.py sync_cms_groups`.
 
 ### 5.2 media_library
 
 **`MediaAsset`** — `media_type` (IMAGE / VIDEO / DOCUMENT), `source_type` (UPLOAD / YOUTUBE),
-`file`, `external_url`, `external_id` (YouTube video id), `thumbnail_url`, `file_name` (original,
-display only), `file_size`, `mime_type`, `width`, `height`, `duration`, `title`, `alt_text`,
-`checksum` (sha256, indexed — duplicate detection), `uploaded_by`, timestamps.
+`file`, `external_url`, `external_id`, `thumbnail_url`, `file_name`, `file_size`, `mime_type`,
+`width`, `height`, `duration`, `title`, `alt_text`, `checksum` (sha256, indexed),
+`uploaded_by`, timestamps.
 
-- `upload_to` callable produces `uploads/<uuid4>-<slugified-name>.<ext>` — the user filename
-  never determines uniqueness.
-- Property `relative_path` → `/media/uploads/...` for uploads, `external_url` for YouTube.
-- `CheckConstraint`: `file` required when `source_type=UPLOAD`; `external_url` required when
-  `source_type=YOUTUBE`.
+`upload_to` produces `uploads/<uuid4>-<slug>.<ext>` — the user filename never determines
+uniqueness. `relative_path` returns `/media/uploads/…`, or the external URL for YouTube.
+`CheckConstraint`: `file` required for UPLOAD, `external_url` required for YOUTUBE.
 
-### 5.3 Master content
+### 5.3 Master content — owns the content itself, reusable everywhere
 
 | Model | Fields |
 |---|---|
-| **`Project`** | Slugged + Publishable + SEO + TimeStamped, plus `short_description`, `description`, `location`, `project_year`, `project_status` (CONCEPT / ONGOING / COMPLETED), `featured_image`→MediaAsset, `is_featured`, `services` M2M→Service, `search_vector` |
+| **`Project`** | Slugged + Publishable + SEO + TimeStamped · `short_description`, `description`, `location`, `project_year`, `project_status` (CONCEPT / ONGOING / COMPLETED), `featured_image`, `is_featured`, `services` M2M, `search_vector` |
 | **`ProjectGalleryItem`** | `project` (CASCADE), `media` (PROTECT), `caption`, `order` |
-| **`Service`** | Slugged + Publishable + SEO + TimeStamped, plus `short_description`, `description`, `featured_image`, `icon`→MediaAsset, `order` |
-| **`BlogPost`** | Slugged + Publishable + SEO + TimeStamped, plus `excerpt`, `content`, `featured_image`, `author`→User (SET_NULL), `category`→BlogCategory (SET_NULL), `reading_time`, `search_vector` |
+| **`Service`** | Slugged + Publishable + SEO + TimeStamped · `short_description`, `description`, `featured_image`, `icon`, `order` |
+| **`BlogPost`** | Slugged + Publishable + SEO + TimeStamped · `excerpt`, `content`, `featured_image`, `author` (SET_NULL), `category` (SET_NULL), `reading_time`, `search_vector` |
 | **`BlogCategory`** | `name`, `slug`, `description` |
-| **`FAQ`** | Publishable + TimeStamped, plus `question`, `answer`, `category` (GENERAL / VASTU / PROCESS / PRICING) |
+| **`FAQ`** | Publishable + TimeStamped · `question`, `answer`, `category` |
+| **`Counter`** | Publishable + TimeStamped · `prefix`, `content`, `postfix`, `subtitle`, `description` — see §5.5 |
 
 ### 5.4 sections
 
-All inherit `TimeStampedModel` + `SectionBase`, which provides **`internal_label`** — a
-required, admin-facing name for the section instance.
+**`Section`** — the concrete MTI parent, the single table `PageSection` points at.
 
-This field exists because section models are master tables holding many rows. Opening the
-`HomeHeroSection` table shows several rows with no way to tell them apart from their content
-alone. `internal_label` says which page or purpose each row was created for:
-
-```
-HeroSection
-  id  internal_label              title
-  1   "Home - main hero"          "Architecture Beyond Boundaries"
-  2   "About - studio hero"       "Who We Are"
-  3   "Home - seasonal campaign"  "Monsoon Collection"
+```python
+class Section(TimeStampedModel):
+    section_type   = CharField(choices=SectionType, db_index=True)  # set in save()
+    internal_label = CharField(max_length=255)
 ```
 
-It is never rendered on the public site and never appears in public serializers. It is purely
-for the CMS section picker and admin tables, where "which hero is this?" is otherwise
-guesswork.
+`internal_label` is the admin-facing name for a section instance. Section models are master
+tables holding many rows; opening the section browser otherwise shows several heroes with no
+way to tell them apart from their content alone:
 
-| Section | Fields | Item model |
+```
+id  section_type  internal_label            title
+1   hero          "Home - main hero"        "Architecture Beyond Boundaries"
+2   hero          "About - studio hero"     "Who We Are"
+3   cta           "Global - contact us"     "Let's Build Something Meaningful"
+```
+
+Never rendered on the public site, never present in public serializers. Purely for the CMS
+section picker and admin tables, where "which hero is this?" is otherwise guesswork.
+
+| Concrete section | Fields | Item model |
 |---|---|---|
-| `HomeHeroSection` | `title`, `subtitle`, `background_media`, `cta_label`, `cta_url`, `overlay_opacity` | — |
-| `AboutHeroSection` | `title`, `description`, `image` | — |
-| `SimpleHeroSection` | `title`, `subtitle`, `image` (services / contact / vastu pages) | — |
-| `StudioIntroSection` | `heading`, `body`, `image` | `StudioStatItem` (`label`, `value`, `order`) |
-| `FeaturedProjectsSection` | `heading`, `subheading` | `FeaturedProjectItem` (`project`, `order`, `display_variant`) |
-| `ServicesSection` | `heading`, `subheading` | `ServiceSectionItem` (`service`, `order`, `label_override`) |
-| `GallerySection` | `heading`, `subheading`, `layout_variant` (GRID / MASONRY / SLIDER) | `GallerySectionItem` (`media`, `caption`, `order`) |
-| `FAQSection` | `heading`, `subheading` | `FAQSectionItem` (`faq`, `order`) |
+| `HeroSection` | `title`, `subtitle`, `background_media`, `cta_label`, `cta_url`, `overlay_opacity` | — |
+| `IntroSection` | `eyebrow`, `heading`, `body`, `image` | — |
+| `CounterSection` | `eyebrow`, `heading`, `description` | `CounterSectionItem` (`counter`, `order`) |
+| `FeaturedProjectsSection` | `eyebrow`, `heading`, `subheading` | `FeaturedProjectItem` (`project`, `order`, `display_variant`) |
+| `ServicesSection` | `eyebrow`, `heading`, `subheading` | `ServiceSectionItem` (`service`, `order`, `label_override`) |
+| `GallerySection` | `eyebrow`, `heading`, `subheading`, `layout_variant` (GRID / MASONRY / SLIDER) | `GallerySectionItem` (`media`, `caption`, `order`) |
+| `FAQSection` | `eyebrow`, `heading`, `subheading` | `FAQSectionItem` (`faq`, `order`) |
 | `CTASection` | `heading`, `description`, `background_media`, `button_label`, `button_url` | — |
 | `ContactInfoSection` | `address`, `phone`, `email`, `map_embed_url`, `office_hours` | — |
+| `RichTextSection` | `heading`, `body` (HTML) — carries `/legal/privacy` and `/legal/terms` | — |
 
-Every item model: `section` CASCADE, content FK **PROTECT**, `UniqueConstraint(section,
-content)`, `order` unconstrained.
+Every item model: `section` CASCADE, content FK **PROTECT**,
+`UniqueConstraint(section, <content>)`, `order` unconstrained.
 
-### 5.5 pages
+### 5.5 Counter section — confirmed against the live UI
 
-`HomePage`, `AboutPage`, `ContactPage`, `VastuPage`, `ProjectsListingPage`,
-`ServicesListingPage`, `BlogListingPage` — each `SingletonModel` + `SEOModel` +
-`TimeStampedModel` with nullable FKs to its section slots.
-
-**`Company`** (singleton master, TimeStamped):
+From the "ARCHETHOS / AT A GLANCE" band. `Counter` is **master content**, not an inline row:
+the same stat appears on the home and about pages and must be editable in one place.
 
 ```
-name                CharField
-address             TextField
-logo                → MediaAsset (SET_NULL)
-
-social_urls         JSONB   {"instagram": "...", "linkedin": "...", "youtube": "..."}
-contacts            JSONB   {"emails": [...], "phones": [...], "whatsapp": "..."}
-header_links        JSONB   [{"label": "Projects", "url": "/projects"}]
-footer_links        JSONB   [{"heading": "Company", "links": [{"label", "url"}]}]
-
-head_inject         TextField   → rendered inside <head>
-body_inject         TextField   → rendered before </body>
-
-meta_title          CharField
-meta_description    TextField
-meta_keywords       CharField
+Counter
+  prefix       CharField, blank   "$", "~", usually empty
+  content      CharField          "40", "2", "100"
+                                  text, not int — "1.5K" and "24/7" must be allowed
+  postfix      CharField, blank   "+", "%"
+  subtitle     CharField          "PROJECTS DELIVERED"
+  description  CharField, blank   "Residential, commercial and interior"
 ```
 
-- JSON fields use `JSONField` (JSONB), not `TextField` — same JSON over the wire, but validated
-  on write and queryable. Each has a light schema validator.
-- **`head_inject` / `body_inject` are a stored-XSS vector**: whoever can write them executes
-  arbitrary JS on every page of the live site. The write serializer restricts **these two fields
-  only** to superusers; the rest of `Company` needs just `pages.change_company`.
+| prefix | content | postfix | subtitle | description |
+|---|---|---|---|---|
+| | 40 | + | PROJECTS DELIVERED | Residential, commercial and interior |
+| | 2 | | CITIES SERVED | Lucknow and Kushinagar |
+| | 5 | | DISCIPLINES IN-HOUSE | From first sketch to finished space |
+| | 100 | % | CLIENT SATISFACTION | From first meeting to handover |
 
-### 5.6 enquiries
+`prefix` / `postfix` are separate fields rather than baked into `content` because the design
+styles them differently — the "+" and "%" render in the accent colour at a smaller size than
+the number.
 
-**`Enquiry`** (TimeStamped) — one table for every form on the site.
+### 5.6 pages
+
+**`Page`** — SEO + TimeStamped · `name`, `slug` (unique, indexed), `is_published`.
+
+No `page_type`. Home, About, Contact, Gallery, Locations and both Legal pages are all just
+`Page` rows, created by an administrator without a migration.
+
+**Listing pages** (`/journal`, `/projects`, `/services`) are ordinary `Page` rows too — they
+own their hero, SEO and CTA. The list itself comes from `/api/v1/public/blogs/?page=1`, which
+needs the pagination the aggregate endpoint deliberately does not have. The frontend route
+calls both. No backend concept is required for this, which is why `page_type` stays absent.
+
+**`PageSection`** — the composition table.
+
+```python
+class PageSection(TimeStampedModel):
+    page        = FK(Page, CASCADE, related_name="page_sections")
+    section     = FK(Section, PROTECT, related_name="page_usages")
+    section_key = CharField(max_length=100)
+    order       = PositiveIntegerField(default=0)
+    is_visible  = BooleanField(default=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [UniqueConstraint(fields=["page", "section_key"],
+                                        name="unique_page_section_key")]
+```
+
+`section` is **PROTECT**: removing a section from a page deletes only the `PageSection` row,
+never the section itself, which may be in use elsewhere. `page_usages` answers "which pages
+use this section?" — the admin UI must show that before allowing a delete.
+
+**`section_type` vs `section_key`** — these answer different questions:
 
 ```
-form_type    CONTACT | CONSULTATION | CAREER | GENERAL   (indexed)
-name · email · phone · subject · message
-extra        JSONB, default {}     ← form-specific fields; a new form needs no migration
-source_page  CharField             ← "/vastu", "/contact"
-is_read      BooleanField          (indexed)
+section_type  →  which component renders this          (on Section)
+section_key   →  what role this instance plays on      (on PageSection)
+                 this specific page
 ```
 
-### 5.7 audit
-
-**`AuditLog`**
+The same type may appear twice on one page — something the fixed-slot design could not express:
 
 ```
-user          → User (SET_NULL)
-action        CREATE | UPDATE | DELETE | LOGIN | LOGOUT
-content_type  → ContentType (null for LOGIN / LOGOUT)
-object_id     PositiveBigIntegerField (null)
-object_repr   CharField
-changes       JSONB   {"title": {"old": "...", "new": "..."}}
-created_at
+page   section_key       section_type        order
+home   main_hero         hero                1
+home   at_a_glance       counter             2
+home   featured_work     featured_projects   3
+home   top_cta           cta                 4
+home   homepage_faq      faq                 5
+home   bottom_cta        cta                 6   ← same type, different key
 ```
 
-Indexes: `(content_type, object_id)`, `(user, -created_at)`, `(action, -created_at)`.
+### 5.7 company
 
-**~33 tables total.**
+**`Company`** — singleton master.
+
+```
+name · address · logo (FK MediaAsset)
+social_urls    JSONB   {"instagram": "...", "linkedin": "..."}
+contacts       JSONB   {"emails": [...], "phones": [...]}
+header_links   JSONB   [{"label": "Projects", "url": "/projects"}]
+footer_links   JSONB   [{"heading": "Company", "links": [...]}]
+head_inject    TextField   → rendered inside <head>
+body_inject    TextField   → rendered before </body>
+meta_title · meta_description · meta_keywords     global SEO defaults
+```
+
+JSON fields use `JSONField` (JSONB), validated on write and queryable — same JSON over the
+wire as a `TextField` would give, with none of the downsides.
+
+**`head_inject` / `body_inject` are a stored-XSS vector**: whoever writes them executes
+arbitrary JS on every page of the live site. The write serializer restricts **those two fields
+only** to superusers; everything else in `Company` needs just `company.change_company`.
+
+### 5.8 enquiries
+
+**`Enquiry`** — one table for every form on the site: `form_type` (CONTACT / CONSULTATION /
+CAREER / GENERAL), `name`, `email`, `phone`, `subject`, `message`, `extra` (JSONB — a new form
+needs no migration), `source_page`, `is_read`.
+
+### 5.9 audit
+
+**`AuditLog`** — `user` (SET_NULL), `action` (CREATE / UPDATE / DELETE / LOGIN / LOGOUT /
+PUBLISH / UNPUBLISH), `content_type`, `object_id`, `object_repr`, `changes` (JSONB),
+`created_at`. Indexes on `(content_type, object_id)`, `(user, -created_at)`,
+`(action, -created_at)`.
 
 ---
 
@@ -386,68 +441,59 @@ Indexes: `(content_type, object_id)`, `(user, -created_at)`, `(action, -created_
 │                              MEDIA LIBRARY                               │
 │  MediaAsset — media_type · source_type · file/external_url · alt_text     │
 └───┬──────────────────────────────────────────────────────────────────────┘
-    │ PROTECT (referenced everywhere; never orphaned)
-    ├──────────────┬──────────────┬──────────────┬─────────────┬──────────┐
-    ▼              ▼              ▼              ▼             ▼          ▼
-┌─────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌─────────┐ ┌────────┐
-│ Project │  │ Service  │  │ BlogPost │  │  FAQ       │  │ Company │ │SEOModel│
-│ featured│  │ featured │  │ featured │  │ (no media) │  │ .logo   │ │.og_img │
-│ _image  │  │ _image   │  │ _image   │  │            │  │         │ │(abstr.)│
-└────┬────┘  │ .icon    │  └────┬─────┘  └─────┬──────┘  └─────────┘ └────────┘
-     │       └────┬─────┘       │              │
-     │  Project.services M2M ───┘              │
-     │            │  BlogPost.author   → User  │
-     │            │  BlogPost.category → BlogCategory
-     │            │             │              │
-     │  ┌─────────┴─────────────┴──────────────┴───────────────────┐
-     │  │   MASTER CONTENT — status: DRAFT | PUBLISHED | ARCHIVED  │
-     │  └─────────┬─────────────┬──────────────┬───────────────────┘
-     ▼            ▼             ▼              ▼
+    │ PROTECT — referenced by master content AND by sections; never orphaned
+    ├────────────┬────────────┬────────────┬──────────┬─────────────────────┐
+    ▼            ▼            ▼            ▼          ▼                     ▼
+┌─────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌─────────┐  ┌───────────────────┐
+│ Project │ │ Service  │ │ BlogPost │ │Counter │ │ Company │  │ HeroSection       │
+│ +Gallery│ │  .icon   │ │          │ │  FAQ   │ │  .logo  │  │  .background_media│
+│  Items  │ │          │ │          │ │(no img)│ │         │  │ CTASection  …     │
+└────┬────┘ └────┬─────┘ └────┬─────┘ └───┬────┘ └─────────┘  └───────────────────┘
+     │           │            │           │
+     │   MASTER CONTENT — status: DRAFT | PUBLISHED | ARCHIVED
+     └───────────┴────────────┴───────────┘
+                       │ PROTECT
+                       ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                  SECTION ITEMS (ordered, content FK = PROTECT)           │
-│  FeaturedProjectItem   ServiceSectionItem   GallerySectionItem           │
-│  FAQSectionItem        StudioStatItem                                    │
-│  ProjectGalleryItem  (belongs to Project, not to a section)              │
+│               SECTION ITEMS  (ordered intermediates)                     │
+│  FAQSectionItem · CounterSectionItem · FeaturedProjectItem                │
+│  ServiceSectionItem · GallerySectionItem                                  │
+│  each: UniqueConstraint(section, content)  ·  order in NO constraint      │
+└───────────────────────────┬──────────────────────────────────────────────┘
+                            │ CASCADE (item → section)
+                            ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                   Section   (concrete MTI parent)                        │
+│             section_type · internal_label · timestamps                   │
 │                                                                          │
-│  each: UniqueConstraint(section, content)    order = display only,       │
-│                                              in NO constraint            │
+│   ┌───────┬───────┬─────────┬──────────┬─────────┬───────┬─────┬──────┐  │
+│   ▼       ▼       ▼         ▼          ▼         ▼       ▼     ▼      ▼  │
+│  Hero  Intro  Counter  Featured   Services  Gallery   FAQ   CTA  RichText│
+│                        Projects                                  Contact │
+│   each subclass = its own table, joined to section by pk (Django MTI)    │
 └───────────────────────────┬──────────────────────────────────────────────┘
-                            │ section FK = CASCADE
+                            │ N:1   PROTECT
                             ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                       SECTIONS (strongly typed)                          │
-│  HomeHeroSection   AboutHeroSection   SimpleHeroSection                  │
-│  StudioIntroSection   FeaturedProjectsSection   ServicesSection          │
-│  GallerySection   FAQSection   CTASection   ContactInfoSection           │
+│                             PageSection                                  │
+│      page · section · section_key · order · is_visible                   │
+│      UniqueConstraint(page, section_key)       order: NO constraint      │
 └───────────────────────────┬──────────────────────────────────────────────┘
-                            │ FK null=True, on_delete=SET_NULL
+                            │ N:1   CASCADE
                             ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                  PAGES (singleton + SEO + TimeStamped)                   │
-│                                                                          │
-│  HomePage ── hero → HomeHeroSection                                      │
-│           ├─ intro → StudioIntroSection                                  │
-│           ├─ featured_projects → FeaturedProjectsSection                 │
-│           ├─ services → ServicesSection                                  │
-│           ├─ gallery → GallerySection      ┐                             │
-│           ├─ faq → FAQSection              │ shareable across pages      │
-│           └─ cta → CTASection              │                             │
-│  AboutPage ─ hero → AboutHeroSection       │                             │
-│           ├─ intro → StudioIntroSection    │                             │
-│           ├─ gallery → GallerySection  ◄───┤                             │
-│           └─ cta → CTASection          ◄───┘                             │
-│  ContactPage ─ hero → SimpleHeroSection · contact_info → ContactInfo     │
-│  VastuPage · ProjectsListingPage · ServicesListingPage · BlogListingPage │
-│  Company (singleton, page-independent)                                   │
+│                                Page                                      │
+│         name · slug (unique) · is_published · SEO · timestamps           │
+│   home · about · contact · gallery · locations · journal · projects      │
+│   services · legal/privacy · legal/terms   —  all just rows              │
 └───────────────────────────┬──────────────────────────────────────────────┘
                             ▼
-                   AGGREGATE PUBLIC API  →  NEXT.JS
+              GET /api/v1/public/pages/{slug}/   →   NEXT.JS
 
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  CROSS-CUTTING                                                           │
-│  User ──< Group >── Permission     (Django native — no custom RBAC)      │
-│  AuditLog ── user · content_type + object_id · changes JSONB             │
-│  Enquiry  ── write-only from public, read + mark-read in admin           │
+│  User ──< Group >── Permission      (Django native — no custom RBAC)     │
+│  Company (singleton)   ·   Enquiry   ·   AuditLog                        │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -455,472 +501,418 @@ Indexes: `(content_type, object_id)`, `(user, -created_at)`, `(action, -created_
 
 | Relationship | `on_delete` | Effect |
 |---|---|---|
-| content → MediaAsset | **PROTECT** | cannot delete an in-use image; API returns 409 naming the referencing objects |
-| item → section | **CASCADE** | deleting a section removes its item rows only, never master content |
-| item → master content | **PROTECT** | cannot delete a FAQ placed in a section; error names the sections |
-| page → section | **SET_NULL** | deleting a section blanks the slot; the page survives |
+| content / section → MediaAsset | **PROTECT** | cannot delete an in-use image; 409 names the referents |
+| item → section | **CASCADE** | deleting a section drops its item rows only, never master content |
+| item → master content | **PROTECT** | cannot delete a FAQ that is placed in a section |
+| PageSection → Section | **PROTECT** | removing a section from a page never deletes the section |
+| PageSection → Page | **CASCADE** | deleting a page drops its composition rows only |
+| concrete section → Section | MTI parent link | deleting a `HeroSection` deletes its `Section` row |
 | BlogPost → author | **SET_NULL** | deactivating a user never destroys content |
 | AuditLog → user | **SET_NULL** | audit history outlives the account |
 
 ---
 
-## 7. Authentication architecture
+## 7. Authentication — **DONE**
 
 ```
-┌────────────┐   POST /api/v1/auth/login/  {email, password}
-│  Next.js   │   fetch(..., { credentials: "include" })
-└─────┬──────┘
-      ▼
-  authenticate(email, password) → is_active check
-      ▼
-  RefreshToken.for_user(user) → access (15 min) + refresh (7 days)
-      ▼
-  Set-Cookie: access_token   HttpOnly Secure SameSite  Path=/api/
-  Set-Cookie: refresh_token  HttpOnly Secure SameSite  Path=/api/v1/auth/
-  Set-Cookie: csrftoken      (readable — double-submit only)
-      ▼
-  200 {success, data: {user, groups, permissions}}   ← no token values in the body
-  AuditLog(LOGIN)
+POST /api/v1/auth/login/  →  Set-Cookie: access_token   HttpOnly  Path=/api/
+                             Set-Cookie: refresh_token  HttpOnly  Path=/api/v1/auth/
+                             Set-Cookie: csrftoken      readable
+                             200 { user, groups, permissions }   ← no token values
 
-                 ┌────────────────────────────────────────────┐
-   every request │ CookieJWTAuthentication                    │
-   ──────────────▶ 1. read access_token cookie                │
-                 │ 2. Bearer header fallback (non-browser)    │
-                 │ 3. validate signature + expiry             │
-                 │ 4. enforce_csrf() on unsafe methods        │
-                 │ 5. reject token_type != "access"           │ ← refresh can never authenticate
-                 └────────────────────────────────────────────┘
+every request →  CookieJWTAuthentication
+                   1. read access_token cookie
+                   2. Bearer header fallback (non-browser clients)
+                   3. validate signature + expiry
+                   4. enforce CSRF on unsafe methods
+                   5. AccessToken.verify() rejects a refresh token
 
-  401 → frontend calls POST /api/v1/auth/refresh/
-      ▼
-  refresh cookie → validate → blacklist old → issue new pair → reset both cookies → 200
-      │
-      └─ missing / expired / invalid / blacklisted → 401 + BOTH cookies cleared
-         (no grace window — decision 2.7)
+401 →  POST /api/v1/auth/refresh/   rotate + blacklist + reset both cookies
+       any failure → 401 with both cookies cleared (no grace window)
 
-  POST /api/v1/auth/logout/ → blacklist refresh → delete both cookies
-                            → AuditLog(LOGOUT) → 204
+POST /api/v1/auth/logout/  →  blacklist refresh, delete both cookies, 204
 ```
 
-`refresh_token` is scoped to `Path=/api/v1/auth/` so it is never transmitted on ordinary API
-calls. `token_type` is asserted explicitly so a refresh token can never satisfy a protected
-endpoint.
+The refresh cookie is scoped to `Path=/api/v1/auth/` so it is not transmitted on ordinary API
+calls. Cookie auth is CSRF-relevant in a way a Bearer header is not, so CSRF is enforced on
+unsafe methods and never disabled.
 
-### Cookie / CORS / CSRF configuration
-
-```python
-# env-driven
-AUTH_COOKIE_SECURE   = env.bool("AUTH_COOKIE_SECURE", False)      # True in production
-AUTH_COOKIE_SAMESITE = env("AUTH_COOKIE_SAMESITE", default="Lax")
-AUTH_COOKIE_DOMAIN   = env("AUTH_COOKIE_DOMAIN", default=None)
-ACCESS_TOKEN_LIFETIME_MINUTES = env.int("ACCESS_TOKEN_LIFETIME_MINUTES", 15)
-REFRESH_TOKEN_LIFETIME_DAYS   = env.int("REFRESH_TOKEN_LIFETIME_DAYS", 7)
-
-CORS_ALLOWED_ORIGINS   = env.list("CORS_ALLOWED_ORIGINS")   # never "*" with credentials
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS     = [*default_headers, "x-csrftoken"]
-CSRF_TRUSTED_ORIGINS   = env.list("CSRF_TRUSTED_ORIGINS")
-CSRF_COOKIE_HTTPONLY   = False          # the frontend must read it to echo it back
-
-SIMPLE_JWT = {
-    "ROTATE_REFRESH_TOKENS":    True,
-    "BLACKLIST_AFTER_ROTATION": True,
-    ...
-}
-```
-
-**Default topology: `SameSite=Lax`.** Works in development because `localhost:3000` →
-`localhost:8000` is same-site (ports are irrelevant to SameSite). In production, deploy the admin
-and the API on the same registrable domain (`admin.archethos.com` / `api.archethos.com`) to keep
-`Lax`.
-
-**Only if truly cross-site:** switch to `SameSite=None; Secure` and rely on the double-submit
-CSRF token. CSRF is never disabled.
+**Default topology `SameSite=Lax`** — works in development, since `localhost:3000` →
+`localhost:8000` is same-site. In production keep the admin and the API on the same
+registrable domain. Only if genuinely cross-site, switch to `SameSite=None; Secure` with the
+double-submit token.
 
 ---
 
-## 8. Permission architecture
+## 8. Permission architecture — **DONE**
 
 ```
-Request
-  │
-  ├─ /api/v1/public/*  → AllowAny · read-only · .live() querysets only
-  │
-  ├─ /api/v1/auth/*    → AllowAny (login, refresh) · IsAuthenticated (me, logout)
-  │
-  └─ /api/v1/admin/*   → IsAuthenticated  AND  StrictDjangoModelPermissions
-                             GET       → app_label.view_<model>
-                             POST      → app_label.add_<model>
-                             PUT/PATCH → app_label.change_<model>
-                             DELETE    → app_label.delete_<model>
-                          superuser bypasses (Django convention)
+/api/v1/public/*  →  AllowAny · read-only · .live() querysets only
+/api/v1/auth/*    →  AllowAny (login, refresh) · IsAuthenticated (me, logout)
+/api/v1/admin/*   →  IsAuthenticated AND StrictDjangoModelPermissions
+                        GET → view_*       POST → add_*
+                        PUT/PATCH → change_*   DELETE → delete_*
+                     superuser bypasses (Django convention)
 ```
 
-Three deliberate choices:
+`StrictDjangoModelPermissions` adds the `view_*` requirement on GET that DRF's stock class
+omits — without it, "this user may only view Projects" is unenforceable in the negative
+direction.
 
-1. **`StrictDjangoModelPermissions`** — DRF's stock `DjangoModelPermissions` does *not* require
-   `view_*` for GET. We subclass to require it, otherwise "can only view Projects" is
-   unenforceable in the negative direction.
-2. **Section-item permissions derive from the parent section.** Editing a `FAQSectionItem` checks
-   `sections.change_faqsection`, not `sections.change_faqsectionitem`. "Can this person edit the
-   FAQ section" is the real mental model, and 10 extra permission rows per section type would
-   make the group-assignment UI unusable.
-3. **Privilege-escalation guards** (Django provides none of these):
-   - a non-superuser may only grant permissions they themselves hold
-   - a non-superuser may never set `is_superuser`
-   - nobody may deactivate themselves
-   - the last active superuser may not be deactivated
-   - `Company.head_inject` / `body_inject` are superuser-only
+**Section-item and page-section permissions derive from the parent.** Editing a
+`FAQSectionItem` checks `sections.change_faqsection`; editing a `PageSection` checks
+`pages.change_page`. Per-item permission rows would make the group picker unusable.
 
-`/auth/me/` resolves permissions via `user.get_all_permissions()` (direct ∪ group-derived).
-**Permissions are never stored in the JWT payload** — a revocation takes effect on the next
-request rather than at token expiry.
+**Escalation guards** (Django provides none of these): grant only permissions you hold · group
+assignment checked the same way, since a group grants everything inside it · only superusers
+set `is_superuser` / `is_staff` · nobody deactivates themselves · the last active superuser
+cannot be deactivated · `head_inject` / `body_inject` are superuser-only.
 
-### Bootstrap groups (data migration)
+`/auth/me/` resolves permissions via `get_all_permissions()`. **Never stored in the JWT
+payload**, so a revocation takes effect on the next request rather than at token expiry.
+
+### Default roles
+
+Defined in `accounts/groups.py`, applied by the bootstrap migration, refreshed with
+`manage.py sync_cms_groups` — which **must be re-run after each content phase**, since the
+roles grant whatever models exist when they are synced.
 
 | Group | Scope |
 |---|---|
-| `Administrators` | everything except superuser-only fields |
-| `Content Managers` | all content + sections + pages; no users, no audit |
-| `Editors` | view + change content; no delete, no publish |
-| `Media Managers` | media library only |
+| `Administrators` | all content + users + audit + company |
+| `Content Managers` | all content; no users, no audit |
+| `Editors` | view + change content; no delete |
+| `Media Managers` | the media library only |
 
 ---
 
-## 9. API surface
+## 9. Section registry
 
-### `/api/v1/auth/`
+One centralised mapping, in `sections/registry.py`. No `if section_type == …` anywhere else in
+the codebase.
+
+```python
+@dataclass(frozen=True)
+class SectionSpec:
+    model: type[Section]
+    list_serializer: type[Serializer]
+    detail_serializer: type[Serializer]
+    write_serializer: type[Serializer]
+    public_serializer: type[Serializer]
+    url_segment: str                              # "hero", "faq", …
+    #: applied when the aggregate API batch-loads this type
+    public_queryset: Callable[[QuerySet], QuerySet]
+
+SECTION_REGISTRY: dict[str, SectionSpec] = {
+    "hero": SectionSpec(HeroSection, …,
+                        public_queryset=lambda qs: qs.select_related("background_media")),
+    "faq":  SectionSpec(FAQSection, …,
+                        public_queryset=lambda qs: qs.prefetch_related("items__faq")),
+    …
+}
+```
+
+Adding a section type:
 
 ```
-POST   login/          POST   refresh/       POST   logout/       GET  me/
-POST   password/change/
+1. model subclassing Section       4. register in SECTION_REGISTRY
+2. its four serializers            5. admin URLs — generated from the registry, so free
+3. add to SectionType choices      6. frontend adds its component to its own registry
 ```
 
-### `/api/v1/admin/` — all list endpoints paginated, searchable, filterable, orderable
+Admin section routes are generated by iterating the registry, so step 5 costs nothing.
 
+---
+
+## 10. API surface
+
+### `/api/v1/auth/` — **DONE**
 ```
-users/   users/{id}/   users/{id}/set-password/   users/{id}/deactivate/
-groups/  groups/{id}/  permissions/                (grouped by app/model)
-audit-logs/  audit-logs/{id}/                      (read-only)
+login/   refresh/   logout/   me/   password/change/   csrf/
+```
 
-media/   media/{id}/   media/upload/   media/youtube/   media/{id}/usage/
+### `/api/v1/admin/` — every list paginated, searchable, filterable, orderable
+```
+users/ · users/{id}/ · users/{id}/{deactivate,activate,set-password}/      [DONE]
+groups/ · groups/{id}/ · permissions/                                      [DONE]
+audit-logs/ · audit-logs/{id}/                                (read-only)
 
-projects/  projects/{id}/
-           projects/{id}/gallery/   projects/{id}/gallery/{item_id}/
-           projects/{id}/gallery/reorder/
-services/  services/{id}/
-blogs/     blogs/{id}/   blogs/{id}/publish/   blogs/{id}/unpublish/
-blog-categories/   faqs/
-enquiries/  enquiries/{id}/                     (list, retrieve, PATCH is_read, DELETE)
+media/ · media/{id}/ · media/upload/ · media/youtube/ · media/{id}/usage/
 
-home-hero-sections/       about-hero-sections/       simple-hero-sections/
-studio-intro-sections/    featured-project-sections/ services-sections/
-gallery-sections/         faq-sections/              cta-sections/
-contact-info-sections/
-    └─ each: GET list · POST · GET/PATCH/DELETE {id}
+projects/ · projects/{id}/
+    projects/{id}/gallery/ · gallery/{item_id}/ · gallery/reorder/
+services/ · services/{id}/
+blogs/ · blogs/{id}/ · blogs/{id}/{publish,unpublish}/
+blog-categories/ · faqs/ · counters/
+enquiries/ · enquiries/{id}/
+company/                                        GET · PATCH (singleton)
 
-# ordered relationships — ONE reusable set of base classes, subclassed per section
-{section-type}/{id}/items/               GET list · POST add
-{section-type}/{id}/items/{item_id}/     PATCH · DELETE
-{section-type}/{id}/items/reorder/       PATCH  (atomic)
+# sections — routes generated from SECTION_REGISTRY
+sections/                                       all sections, ?section_type= filter
+sections/{type}/                                list + create    e.g. sections/hero/
+sections/{type}/{id}/                           detail · update · delete
+sections/{type}/{id}/items/                     list + add       (types that have items)
+sections/{type}/{id}/items/{item_id}/           update · remove
+sections/{type}/{id}/items/reorder/             atomic bulk reorder
 
-pages/home/  pages/about/  pages/contact/  pages/vastu/
-pages/projects/  pages/services/  pages/blog/       (GET · PATCH — singletons)
-company/                                            (GET · PATCH — singleton)
+# page composition
+pages/ · pages/{id}/
+pages/{id}/sections/                            list + attach a section
+pages/{id}/sections/{page_section_id}/          update key / visibility / order
+pages/{id}/sections/reorder/                    atomic bulk reorder
 ```
 
 ### `/api/v1/public/` — read-only, `.live()` only
-
 ```
-projects/   projects/{slug}/     ?featured=true&service=<slug>&year=&status=
-services/   services/{slug}/
-blogs/      blogs/{slug}/        ?category=&search=
-faqs/                            ?category=
-pages/{slug}/                    home|about|contact|vastu|projects|services|blog
-company/
-search/?q=                       projects + services + blogs
-enquiries/                       POST only — rate-limited, honeypot
+pages/{slug}/           the aggregate endpoint — never paginated
+projects/ · projects/{slug}/      ?featured=&service=&year=&status=
+services/ · services/{slug}/
+blogs/ · blogs/{slug}/            ?category=&search=
+faqs/ · company/
+search/?q=                        projects + services + blogs
+enquiries/                        POST only — rate-limited, honeypot
 ```
 
 ### Meta
-
 ```
-/api/v1/schema/   /api/v1/schema/docs/   (drf-spectacular)   /health/
+/api/v1/schema/   /api/v1/schema/docs/   /health/
 ```
 
-### Standard admin list query parameters
-
+### Standard admin list parameters
 ```
 ?page=1&page_size=20&search=villa&ordering=-created_at
-+ resource-specific filters: ?status=PUBLISHED  ?media_type=IMAGE  ?is_active=true
++ resource filters: ?status=PUBLISHED  ?media_type=IMAGE  ?section_type=hero  ?is_active=true
 ```
 
 ---
 
-## 10. Response format
-
-**Success**
+## 11. Response format
 
 ```json
 { "success": true, "message": "Projects retrieved successfully", "data": [] }
 ```
-
-**Paginated list**
-
 ```json
-{
-  "success": true,
-  "message": "Projects retrieved successfully",
+{ "success": true, "message": "…",
   "pagination": { "page": 1, "page_size": 20, "total_items": 156,
                   "total_pages": 8, "has_next": true, "has_previous": false },
-  "data": []
-}
+  "data": [] }
 ```
-
-**Error**
-
 ```json
 { "success": false, "message": "Validation failed",
   "errors": { "slug": ["This slug is already in use."] }, "code": "validation_error" }
 ```
 
-Status codes: `200` · `201` · `204` (empty body, not wrapped) · `400` · `401` · `403` · `404` ·
-`409` (PROTECT violations, slug conflicts) · `429` (rate limit).
+`200` · `201` · `204` (empty, unwrapped) · `400` · `401` · `403` · `404` · `409` (PROTECT
+violations, slug and section_key conflicts) · `429`.
 
 ---
 
-## 11. Serializer strategy
+## 12. Serializer strategy
 
 Four variants per admin resource:
 
 | Serializer | Purpose |
 |---|---|
-| `XListSerializer` | flat, data-table columns only, **zero nested objects** |
-| `XDetailSerializer` | full record + nested items + expanded media detail |
-| `XWriteSerializer` | create/update; media by id-or-path; owns validation |
+| `XListSerializer` | flat data-table columns, **zero nested objects** |
+| `XDetailSerializer` | full record + nested items |
+| `XWriteSerializer` | create / update, media by id-or-path, owns validation |
 | `PublicXSerializer` | published fields only |
 
-**Public serializers are independent classes, never subclasses of the admin ones.** Inheritance
-is how admin fields leak into public payloads six months later.
-
-Layering (thin views):
+**Public serializers are independent classes, never subclasses of the admin ones** — that is
+exactly how admin fields leak into public payloads six months later.
 
 ```
-Models       fields, constraints, PublishableQuerySet, computed properties
-Selectors    for_public(), for_admin_list(), .live()   ← ALL prefetch logic lives here
+Models       fields, constraints, PublishableQuerySet
+Selectors    live(), for_public(), for_admin_list()  ← all prefetch logic lives here
 Serializers  shape + validation
-Services     only where genuinely multi-step: media upload pipeline, publish transitions,
-             atomic reorder, user creation with permissions, audit writes
-Views        thin class-based views — ~5-15 lines, get_serializer_class() dispatch
+Services     only where genuinely multi-step: upload pipeline, publish transitions,
+             atomic reorder, user creation, audit writes
+Views        thin CBVs, ~5-15 lines
 Permissions  declarative classes
 ```
 
-Shared infrastructure in `apps/api/generics.py`:
+Shared base classes in `apps/api/generics.py`: `AdminListCreateAPIView`,
+`AdminRetrieveUpdateDestroyAPIView` (both **done**), plus `SectionItemListCreateAPIView`,
+`SectionItemDetailAPIView`, `ReorderAPIView` — written once, subclassed per section type and
+reused for page composition.
 
-- `AdminListCreateAPIView` — list + create: envelope, pagination, filter/search/order, audit,
-  serializer dispatch by method.
-- `AdminRetrieveUpdateDestroyAPIView` — detail, update, delete.
-- `SectionItemListCreateAPIView` / `SectionItemDetailAPIView` / `SectionItemReorderAPIView` —
-  configured per section type, covering list / add / update / remove / **reorder** for all
-  ordered relationships. Written once, subclassed per section.
-- `MediaReferenceField` — the single place decision 2.1 is enforced.
-
-Reorder validates: all ids belong to this section · no duplicate ids · no unknown ids. Then
-`transaction.atomic()` + `bulk_update(["order"])`.
+**Reorder** validates: all ids belong to this parent · no duplicate ids · no unknown ids. Then
+`transaction.atomic()` + `bulk_update(["order"])`. No deferrable-constraint juggling is needed,
+because `order` carries no constraint (§2.3).
 
 ---
 
-## 12. Aggregate page API
+## 13. Aggregate page API
 
-`GET /api/v1/public/pages/{slug}/` resolves through a **page registry** — the one place slugs map
-to typed models:
+`GET /api/v1/public/pages/{slug}/`
 
-```python
-PAGE_REGISTRY = {
-    "home":    PageSpec(HomePage,    HomePageSerializer),
-    "about":   PageSpec(AboutPage,   AboutPageSerializer),
-    "contact": PageSpec(ContactPage, ContactPageSerializer),
-    "vastu":   PageSpec(VastuPage,   VastuPageSerializer),
-    ...
+```json
+{
+  "id": 1, "name": "Home", "slug": "home",
+  "seo": { "meta_title": "…", "meta_description": "…", "og_image": "/media/…",
+           "canonical_url": "", "robots_index": true, "robots_follow": true },
+  "sections": [
+    { "id": 1, "key": "main_hero", "type": "hero",
+      "data": { "title": "Architecture Beyond Boundaries",
+                "background_media": "/media/uploads/hero.webp",
+                "cta_label": "Explore Projects", "cta_url": "/projects" } },
+
+    { "id": 2, "key": "at_a_glance", "type": "counter",
+      "data": { "eyebrow": "ARCHETHOS / AT A GLANCE",
+                "items": [ { "content": "40", "postfix": "+",
+                             "subtitle": "PROJECTS DELIVERED",
+                             "description": "Residential, commercial and interior" } ] } }
+  ]
 }
 ```
 
-Unknown slug → 404. Each page has its **own strongly typed serializer** with explicitly named
-keys (`hero`, `featured_projects`, `faq`, `cta`) — never a generic loop. Each page model owns a
-`for_public()` classmethod carrying its full `select_related` / `prefetch_related` chain, so the
-view stays three lines.
+`sections` is ordered by `PageSection.order`, filtered to `is_visible=True`, and each entry
+carries `key` + `type` so the frontend registry can select a component. `internal_label` is
+never exposed.
 
-**Query budget for `pages/home/` — 8 queries, flat regardless of content volume:**
+### Query strategy — batch by type, not by section
+
+The one real cost of MTI is resolving `Section` rows to concrete subclasses. Naive resolution
+is N+1; `InheritanceManager`'s all-subclass LEFT JOIN is slower and cannot apply per-type
+prefetches. So:
 
 ```
-1  HomePage + all 6 section FKs + og_image        select_related (single JOIN)
-2  FeaturedProjectItem → Project → featured_image prefetch, ordered
-3  Project.services (M2M on featured projects)    prefetch
-4  ServiceSectionItem → Service → featured_image  prefetch
-5  FAQSectionItem → FAQ                           prefetch
-6  GallerySectionItem → MediaAsset                prefetch
-7  StudioStatItem                                 prefetch
-8  Company                                        cached singleton
+1  Page by slug                                                         1 query
+2  PageSection + section parent, visible, ordered                       1 query
+3  group the ids by section_type, then ONE batch per DISTINCT type,
+   each with the prefetches that type needs (from SECTION_REGISTRY):
+
+     HeroSection.filter(pk__in=[…]).select_related("background_media")        1
+     CounterSection.filter(pk__in=[…]).prefetch_related("items__counter")     2
+     FAQSection.filter(pk__in=[…]).prefetch_related("items__faq")             2
+     GallerySection.filter(pk__in=[…]).prefetch_related("items__media")       2
+     FeaturedProjectsSection…prefetch_related("items__project__featured_image") 2
+     ServicesSection…prefetch_related("items__service__featured_image")       2
+     CTASection.filter(pk__in=[…]).select_related("background_media")         1
 ```
 
-Guarded by `assertNumQueries` in tests so a future serializer change cannot silently reintroduce
-N+1.
+**≈14 queries, bounded by the number of distinct section types present — not by content
+volume.** A page with 40 gallery images costs the same as one with 4. Pinned with
+`assertNumQueries` so a future serializer change cannot silently regress it.
 
-Response carries `ETag` + `Cache-Control: public, max-age=60, stale-while-revalidate=300` derived
-from the max `updated_at` in the graph — Next.js ISR then costs almost nothing.
-
-Aggregate page endpoints are **never paginated**.
+`ETag` + `Cache-Control: public, max-age=60, stale-while-revalidate=300` derived from the max
+`updated_at` in the graph. Never paginated.
 
 ---
 
-## 13. Database & search
+## 14. Database & search
 
-- Unique + indexed slug on every slugged model.
-- Composite index `(status, published_at)` on Project, Service, BlogPost, FAQ.
-- Index `(section_id, order)` on every item table.
-- `search_vector` (`SearchVectorField` + GIN index) on Project and BlogPost, populated on save
-  with weighted fields — `title` = A, `excerpt`/`short_description` = B, `content`/`description`
-  = C.
-- Postgres extensions via migration: `pg_trgm`, `unaccent`.
-- `CheckConstraint`s: `published_at` consistency; `MediaAsset` source_type/file/external_url
-  consistency.
+- Unique + indexed slug on every slugged model and on `Page`.
+- `UniqueConstraint(page, section_key)`. **No** constraint on any `order` column.
+- `UniqueConstraint(section, content)` on every section-item model.
+- Composite index `(status, published_at)` on all publishable models.
+- Index on `Section.section_type` — the aggregate API groups by it.
+- `search_vector` (`SearchVectorField` + GIN) on Project and BlogPost, weighted title=A,
+  excerpt / short_description=B, body=C. Extensions `pg_trgm` and `unaccent` via migration.
+- `CheckConstraint`s: `published_at` consistency; `MediaAsset` source/file/url consistency.
 - **Search stays inside PostgreSQL.** No Elasticsearch.
 
 ---
 
-## 14. Security checklist
+## 15. Security checklist
 
-- `SECRET_KEY`, DB credentials, allowed origins — all from `.env`, never committed
-- `DEBUG=False` + `ALLOWED_HOSTS` in production
-- HttpOnly + Secure + SameSite cookies; `refresh_token` path-scoped
-- CSRF enforced on unsafe methods by `CookieJWTAuthentication` (never disabled)
-- `CORS_ALLOW_CREDENTIALS = True` with an explicit origin list (never `*`)
-- Refresh rotation + blacklist enabled
-- Upload validation: extension allowlist, MIME sniffing, max size, image dimension caps, Pillow
-  verification (an uploaded `.jpg` that is not an image is rejected)
-- YouTube URL format allowlist + video-id extraction
-- Privilege-escalation guards on user/group APIs
+- Secrets, DB credentials and origins from `.env`, never committed
+- `DEBUG=False` and `ALLOWED_HOSTS` asserted at boot in production
+- HttpOnly + Secure + SameSite cookies; refresh cookie path-scoped
+- CSRF enforced on unsafe methods by `CookieJWTAuthentication`; never disabled
+- `CORS_ALLOW_CREDENTIALS = True` with an explicit origin list, never `*`
+- Refresh rotation + blacklist
+- Upload validation: extension allowlist, MIME sniff, max size, dimension caps, Pillow verify
+  (an uploaded `.jpg` that is not an image is rejected)
+- YouTube URL allowlist + video-id extraction
+- Escalation guards on the user and group APIs
 - `head_inject` / `body_inject` restricted to superusers
 - Public enquiry endpoint rate-limited + honeypot
 - Audit denylist strips passwords and tokens from `changes`
-- Security headers: HSTS, `SECURE_SSL_REDIRECT`, `X_FRAME_OPTIONS`, referrer policy
+- HSTS, SSL redirect, `X_FRAME_OPTIONS`, referrer policy
 
 ---
 
-## 15. Environment variables
+## 16. Environment variables
 
 ```
-DEBUG                          SECRET_KEY                 ALLOWED_HOSTS
-DB_NAME  DB_USER  DB_PASSWORD  DB_HOST  DB_PORT      # shared by Django and docker-compose
-CORS_ALLOWED_ORIGINS           CSRF_TRUSTED_ORIGINS
-AUTH_COOKIE_SECURE             AUTH_COOKIE_SAMESITE       AUTH_COOKIE_DOMAIN
+DEBUG  SECRET_KEY  ALLOWED_HOSTS
+DB_NAME  DB_USER  DB_PASSWORD  DB_HOST  DB_PORT
+CORS_ALLOWED_ORIGINS  CSRF_TRUSTED_ORIGINS
+AUTH_COOKIE_SECURE  AUTH_COOKIE_SAMESITE  AUTH_COOKIE_DOMAIN
 ACCESS_TOKEN_LIFETIME_MINUTES  REFRESH_TOKEN_LIFETIME_DAYS
-MEDIA_URL  MEDIA_ROOT          MAX_UPLOAD_SIZE_MB
+MEDIA_URL  MAX_UPLOAD_SIZE_MB
 ```
 
----
-
-## 16. Phased development plan
-
-Task-level tracking lives in **`TASKS.md`**. This section states each phase's intent and
-dependencies.
-
-| Phase | Goal | Depends on |
-|---|---|---|
-| **1** | DONE - Architecture (this document) | — |
-| **2** | DONE - Foundation: restructure to `apps/`, split settings, `.env`, PostgreSQL + psycopg, DRF / spectacular / CORS config, `core` abstracts, envelope + pagination + exception infrastructure, health check | — |
-| **3** | DONE - Authentication: built-in `auth.User` + email backend + unique email index, `CookieJWTAuthentication` + CSRF enforcement, login / refresh / logout / me / password-change / csrf, rotation + blacklist | 2 |
-| **4** | Users, groups, permissions: management APIs, `StrictDjangoModelPermissions`, escalation guards, bootstrap groups migration | 3 |
-| **5** | Audit: `AuditLog`, `AuditLogMixin`, denylist, read-only filtered API. **Deliberately before content** so every later model is audited from birth rather than retrofitted | 3 |
-| **6** | Media Library: upload pipeline, validation, YouTube parsing, `MediaReferenceField`, usage endpoint, list / search / filter | 2, 5 |
-| **7** | Master content: Project, Service, BlogPost, BlogCategory, FAQ — models, four serializer variants each, admin + public APIs | 6 |
-| **8** | Sections + item models + `SectionItemViewSet` + reorder | 7 |
-| **9** | Pages, singletons, `Company`, page registry, admin page APIs | 8 |
-| **10** | Aggregate public page APIs + `for_public()` selectors + `assertNumQueries` tests + ETag caching | 9 |
-| **11** | PostgreSQL full-text search; `Enquiry` model + rate-limited public submit endpoint | 7 |
-| **12** | Django Admin config, OpenAPI polish, seed command, security checklist pass, deployment notes | all |
-
-**One reordering vs. the original brief:** audit moves ahead of content, so no model needs
-retrofitting later.
+**No `$` in any value** — docker-compose reads the same `.env` and interpolates `$VAR`, which
+silently mangles the value. Generate keys with
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`.
 
 ---
 
-## 16b. Local PostgreSQL via Docker
+## 17. Local PostgreSQL via Docker
 
-PostgreSQL is the only containerised service — Django itself runs on the host venv, so the
-normal `runserver` / debugger / migration workflow is unchanged.
+Only PostgreSQL is containerised; Django runs on the host venv, so `runserver`, the debugger
+and migrations behave normally.
 
 ```bash
-docker compose up -d db          # start (reads DB_* from .env)
-docker compose ps                # confirm healthy
-docker compose logs -f db        # tail
-docker compose down              # stop, keeps data
-docker compose down -v           # stop AND destroy the volume (wipes the database)
+docker compose up -d db      docker compose ps       docker compose down
+docker compose down -v       # destroys the volume — wipes the database
 ```
 
-`docker-compose.yml` reads `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_PORT` from the same
-`.env` Django uses, so the two can never drift.
-
-**This machine uses host port 5433** — an unrelated `postgres_db` container already owns
-5432. The container still listens on 5432 internally; only the published port differs.
-
-**No `$` in any `.env` value.** Compose interpolates `$VAR` when it reads the file, so a
-`SECRET_KEY` containing `$` is silently mangled. Generate keys with
-`python -c "import secrets; print(secrets.token_urlsafe(48))"` — url-safe, and PyJWT 2.13
-warns below 32 bytes anyway.
-
-Django connects with `DB_HOST=localhost` (the container publishes `5432` to the host). Data
-persists in the named volume `archethos_pgdata`.
-
-A healthcheck is defined so Phase 2 can wait for readiness before the first `migrate`.
+**Host port 5433** — an unrelated `postgres_db` container owns 5432 on this machine. The
+container still listens on 5432 internally; only the published port differs.
 
 ---
 
-## 16c. Frontend routes (source of truth for pages)
+## 18. Frontend routes
 
-The Next.js UI lives at `archethos-nextjs/archethos`. Its actual routes differ from
-the Phase 1 assumptions and take precedence:
+The Next.js UI is at `archethos-nextjs/archethos`. Read for reference; **never modified from
+this repo.**
 
 ```
-(website)/                     -> HomePage
-(website)/about                -> AboutPage
-(website)/contact              -> ContactPage
-(website)/gallery              -> GalleryPage        (a page, not just a section)
-(website)/journal              -> BlogListingPage    ("journal", not "blog")
-(website)/journal/[slug]       -> BlogPost detail
-(website)/projects             -> ProjectsListingPage
-(website)/projects/[slug]      -> Project detail
-(website)/services             -> ServicesListingPage
-(website)/services/[slug]      -> Service detail
-(website)/locations            -> LocationsPage      (not yet modelled)
-(website)/legal/privacy        -> LegalPage
-(website)/legal/terms          -> LegalPage
-(admin)/admin, /admin/login    -> the CMS frontend, same Next.js app
+(website)/                home           (website)/locations       locations
+(website)/about           about          (website)/legal/privacy   legal/privacy
+(website)/contact         contact        (website)/legal/terms     legal/terms
+(website)/gallery         gallery
+(website)/journal         journal    ┐   (website)/journal/[slug]   BlogPost detail
+(website)/projects        projects   │   (website)/projects/[slug]  Project detail
+(website)/services        services   ┘   (website)/services/[slug]  Service detail
+(admin)/admin, /admin/login    the CMS frontend, same Next.js app
 ```
 
-Deltas to resolve **before Phase 7 modelling**:
-
-* No `/vastu` route exists — `VastuPage` is probably not needed; Vastu is likely
-  just a `Service`.
-* `/locations` is unmodelled. Needs a decision: a `Location` master model, or a
-  page with static sections.
-* `/legal/[slug]` needs a simple `LegalPage` model (title + rich body + SEO); two
-  instances, so a slug-keyed model rather than two singletons.
-* `/gallery` is a full page, so `GallerySection` must be reusable at page level too.
-* Public blog routes are `/journal/...`; the model can stay `BlogPost` but the
-  public route naming should match the frontend.
-
-**Phase 7 must begin with a component-level survey of that repo** to derive the
-real field list for each section, rather than guessing.
+Every one of these is a `Page` row. No `/vastu` route exists — Vastu is a `Service`, not a
+page. The `/legal/*` pages are composed from a `RichTextSection`.
 
 ---
 
-## 17. Open items
+## 19. Roadmap
+
+| Phase | Goal | Status |
+|---|---|---|
+| 1 | Architecture | **done** |
+| 2 | Foundation: `apps/`, settings, Postgres, envelope + pagination + exceptions, core abstracts | **done** |
+| 3 | Cookie JWT auth on `auth.User` | **done** |
+| 4 | Users, groups, permissions, escalation guards | **done** |
+| 5 | Media Library + `MediaReferenceField` | next |
+| 6 | Master content: FAQ, Counter, Project, Service, BlogPost, BlogCategory | |
+| 7 | `Section` MTI base + concrete sections + `SECTION_REGISTRY` + section CRUD | |
+| 8 | Section items + atomic bulk reorder | |
+| 9 | `Page` + `PageSection` + composition, visibility, reorder APIs | |
+| 10 | Public aggregate `/pages/{slug}/` with batched resolution + `assertNumQueries` | |
+| 11 | PostgreSQL search + `Enquiry` + `Company` | |
+| 12 | Audit, Django Admin, OpenAPI polish, seed command, deployment notes | |
+
+Audit sits late deliberately: `AuditLogMixin` attaches to the view base classes rather than to
+models, so nothing needs retrofitting when it lands. (This reverses the Phase 1 plan, which
+front-loaded audit on the mistaken assumption it would be model-level.)
+
+---
+
+## 20. Open items
 
 | Item | Status |
 |---|---|
-| PostgreSQL connection credentials | **resolved** — Dockerised Postgres 17, credentials from `.env` (see §16b) |
-| Django 6.1 × simplejwt 5.5.1 × `token_blacklist` compatibility | **resolved** — verified working in Phase 2 |
-| Production deployment topology (same registrable domain vs. cross-site) | default `SameSite=Lax`; revisit before production |
-| `/locations` and `/legal/*` page models | **decide before Phase 7** — see §16c |
-| Whether `VastuPage` is needed at all | likely not; no such route in the UI (§16c) |
+| Production deployment topology (same registrable domain vs cross-site) | default `SameSite=Lax`; revisit before production |
+| Field-level survey of the UI components, per section type | do at the start of Phase 7 |
+| `/locations` — a `Location` master model, or just sections? | decide at Phase 9 |

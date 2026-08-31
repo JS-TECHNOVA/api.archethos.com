@@ -54,8 +54,10 @@ LOCAL_APPS = [
     "archethosbackend.apps.services",
     "archethosbackend.apps.blogs",
     "archethosbackend.apps.faqs",
+    "archethosbackend.apps.counters",
     "archethosbackend.apps.sections",
     "archethosbackend.apps.pages",
+    "archethosbackend.apps.company",
     "archethosbackend.apps.enquiries",
     "archethosbackend.apps.api",
 ]

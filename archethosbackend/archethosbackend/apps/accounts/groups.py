@@ -14,8 +14,10 @@ CONTENT_APPS = [
     "services",
     "blogs",
     "faqs",
+    "counters",
     "sections",
     "pages",
+    "company",
     "media_library",
     "enquiries",
 ]

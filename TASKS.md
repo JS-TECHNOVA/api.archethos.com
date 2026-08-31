@@ -4,326 +4,271 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-4 complete · Phase 5 (audit) next
+**Progress:** Phases 1-4 complete · Phase 5 (Media Library) next · 62 tests passing
+
+**Standing constraints — apply to every phase**
+
+- Class-based views only. No ViewSets, no routers, no `@action`. (plan §2.8)
+- Media is `FK(MediaAsset, PROTECT)`, serialized as a relative path. (plan §2.1)
+- `order` is display-only and appears in **no** constraint. (plan §2.3)
+- One publish flag: `status` + `published_at`. No `is_active` / `is_published`. (plan §2.6)
+- Public serializers are independent classes, never subclasses of admin ones. (plan §12)
+- Never modify the Next.js UI repo. Read it for reference only.
 
 ---
 
 ## Blockers
 
-- [x] ~~PostgreSQL credentials~~ — resolved: Dockerised Postgres 17, credentials live in
-      `.env` and are shared with `docker-compose.yml`
-
-_No open blockers._
+_None._
 
 ---
 
 ## Phase 1 — Architecture `[x] COMPLETE`
 
-- [x] Review brief, identify architectural risks
-- [x] Decide media storage strategy (FK + path serialization)
-- [x] Decide page→section cardinality (nullable FK, SET_NULL)
+- [x] Critical review of the brief; identify real risks
+- [x] Decide media storage (FK + path serialization)
 - [x] Decide ordering strategy (`order` in no constraint)
 - [x] Decide audit scope (who changed what only)
 - [x] Decide response envelope approach
 - [x] Decide publish semantics (single `status` field)
-- [x] Decide refresh-race handling (none — 401)
-- [x] Specify `Company` singleton model
-- [x] Specify `Enquiry` model
-- [x] Full model catalogue + ERD
-- [x] Auth / permission / API / serializer architecture
-- [x] Write `DEVELOPMENT_PLAN.md` + `TASKS.md`
+- [x] Decide refresh-race handling (none - 401)
+- [x] Decide class-based views only, never ViewSets
+- [x] **Redesign: dynamic page composition** - `Page` -> `PageSection` -> `Section` (MTI)
+      replaces fixed per-page FK slots
+- [x] Decide MTI over GenericForeignKey / sparse nullable FKs / JSONField
+- [x] Decide `section_type` (component) vs `section_key` (role on a page)
+- [x] Specify `Company` singleton, `Enquiry`, `Counter`
+- [x] Model catalogue + ERD + deletion rules
+- [x] Auth / permission / registry / aggregate-query architecture
 - [x] `docker-compose.yml` for local PostgreSQL 17
 
 ---
 
 ## Phase 2 — Foundation `[x] COMPLETE`
 
-### Environment
-
-- [x] Verify Django 6.1 × simplejwt 5.5.1 × `token_blacklist` compatibility **(do this first)**
+- [x] Verify Django 6.1 x simplejwt 5.5.1 x `token_blacklist`
 - [x] Install `psycopg[binary]`
-- [x] `docker compose up -d db` and confirm the container reports healthy
-- [x] Verify a psql connection from the host on `localhost:${DB_PORT}`
-- [x] Create `requirements/base.txt`, `dev.txt`, `prod.txt`
-- [x] `.env.example` with every variable from plan §15
-- [x] `.env` (gitignored) for local development
-- [x] `.gitignore` (`.env`, `.venv`, `__pycache__`, `media/`, `db.sqlite3`)
-- [x] `.env` DB_* values match `docker-compose.yml` (same file feeds both)
-
-### Project restructure
-
-- [x] Create `archethosbackend/apps/` package
-- [x] Move root `medialibrary/` → `apps/media_library/`
-- [x] Split `settings.py` → `settings/{base,development,production,test}.py`
-- [x] Point `manage.py`, `wsgi.py`, `asgi.py` at `settings.development`
-- [x] Configure PostgreSQL from `.env` via `django-environ` (`DB_HOST=localhost`)
-- [x] `MEDIA_URL` / `MEDIA_ROOT` / static config
-
-### Core app
-
-- [x] `TimeStampedModel`
-- [x] `SEOModel` (lazy `"media_library.MediaAsset"` ref)
-- [x] `SluggedModel` + unique-slug generator utility
-- [x] `PublishableModel` + `PublishableQuerySet.live()`
-- [x] `OrderedItemModel`
-- [x] `SingletonModel` (pinned pk + `CheckConstraint` + `load()`)
-
-### API infrastructure (`apps/api/`)
-
+- [x] `docker compose up -d db`, container healthy, host connection verified
+- [x] `requirements/{base,dev,prod}.txt`
+- [x] `.env` / `.env.example` / `.gitignore`
+- [x] Restructure into `archethosbackend/apps/` with an `AppConfig` per app
+- [x] Move root `medialibrary/` -> `apps/media_library/`
+- [x] Split settings into `base` / `development` / `production` / `test`
+- [x] PostgreSQL wired from `.env`
+- [x] `core` abstracts: TimeStamped, SEO, Slugged, Publishable, OrderedItem, Singleton
 - [x] `EnvelopeJSONRenderer`
-- [x] `envelope_exception_handler` (incl. 409 for `ProtectedError`)
+- [x] `envelope_exception_handler` (incl. `ProtectedError` -> 409 naming referents)
 - [x] `EnvelopePageNumberPagination`
-- [x] DRF settings: default auth, permissions, renderer, pagination, filter backends
-- [x] API versioning + `/api/v1/` router skeleton (`auth/`, `admin/`, `public/`)
-- [x] CORS + CSRF configuration
-- [x] drf-spectacular config + postprocessing hooks for the envelope
+- [x] DRF settings, `/api/v1/` route skeleton, CORS + CSRF, drf-spectacular
 - [x] `/health/` endpoint
+- [x] JSON `handler404` / `handler500` under `/api/`
 
+**Notes**
 
-**Phase 2 notes**
-
-- Django 6.1 x simplejwt 5.5.1 x `token_blacklist` verified working (migrate, issue,
-  rotate, blacklist, reject-reuse). No fallback to 5.2 LTS needed.
-- Postgres publishes on host port **5433**, not 5432 — an unrelated `postgres_db`
-  container (postgres:16) already owns 5432 on this machine.
-- `SECRET_KEY` must contain no `$`: docker-compose reads the same `.env` and would
-  interpolate it. Generate with `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
-- PyJWT 2.13 warns on HMAC keys under 32 bytes, so keep `SECRET_KEY` long.
-- 20/20 infrastructure assertions pass (envelope, pagination metadata, error mapping
-  incl. ProtectedError -> 409, live DB health check).
-- No migrations run yet — deliberate, the custom User must be in the first one.
+- Postgres publishes on host port **5433** - an unrelated `postgres_db` container owns 5432.
+- **No `$` in any `.env` value** - docker-compose interpolates it. Use `secrets.token_urlsafe`.
+- PyJWT 2.13 warns on HMAC keys under 32 bytes.
 
 ---
 
 ## Phase 3 — Authentication `[x] COMPLETE`
 
-**Decision change:** Django's built-in `auth.User` is used instead of a custom user
-model. CMS accounts exist only for staff editing website content, so the built-in
-model already covers everything `/me` needs. See DEVELOPMENT_PLAN.md §2.7a.
+**Decision:** built-in `auth.User`, not a custom user model. (plan §2.7a)
 
-- [x] ~~Custom User model~~ -> use built-in `auth.User`
-- [x] `EmailBackend` so login is by email (constant-time on unknown emails)
+- [x] `EmailBackend` - login by email, constant-time on unknown emails
 - [x] Case-insensitive unique index on `auth_user.email` (migration 0001)
-- [x] `AUTHENTICATION_BACKENDS` wired
-- [x] **First `makemigrations` + `migrate`** against Docker Postgres
-- [x] `createsuperuser` verified (`admin@archethos.test`)
-- [x] `SIMPLE_JWT` config (15 min / 7 days, rotation, blacklist) - env-driven
-- [x] `rest_framework_simplejwt.token_blacklist` in `INSTALLED_APPS`
-- [x] `CookieJWTAuthentication` - cookie read, Bearer fallback, access-only token
-      type, CSRF enforcement on unsafe methods
+- [x] First `makemigrations` + `migrate` against Docker Postgres
+- [x] Superuser created (`admin@archethos.test`)
+- [x] `SIMPLE_JWT` config, rotation + blacklist, env-driven lifetimes
+- [x] `CookieJWTAuthentication` - cookie read, Bearer fallback, access-only token type,
+      CSRF enforced on unsafe methods
 - [x] Cookie helpers (env-aware Secure / SameSite / Domain / Path)
-- [x] `POST /api/v1/auth/login/`
-- [x] `POST /api/v1/auth/refresh/` (rotation + blacklist, 401 + clear on failure)
-- [x] `POST /api/v1/auth/logout/`
-- [x] `GET /api/v1/auth/me/` - effective permissions via `get_all_permissions()`
-- [x] `POST /api/v1/auth/password/change/`
-- [x] `GET /api/v1/auth/csrf/` - seeds the readable csrftoken cookie
-- [x] `cookieAuth` OpenAPI security scheme registered
-- [x] Tests: 23/23 passing
+- [x] `login/` `refresh/` `logout/` `me/` `password/change/` `csrf/`
+- [x] `cookieAuth` OpenAPI security scheme
+- [x] 23 tests
 
-**Phase 3 notes**
+**Notes**
 
-- Refresh cookie is scoped to `Path=/api/v1/auth/`, so it is not sent on ordinary
-  API calls.
-- Logout blacklists the refresh token but **cannot revoke an already-issued access
-  token** - stateless JWT. Mitigated by the 15-minute lifetime plus cookie
-  deletion. See DEVELOPMENT_PLAN.md §2.7b.
-- Login and logout are intentionally `AllowAny` with no authentication classes: an
-  expired access token must never block logging out.
-- No registration endpoint by design - accounts are created by an admin in Phase 4.
-- Login itself is not CSRF-protected (DRF views are csrf_exempt unless an
-  authenticator enforces it). `GET /auth/csrf/` exists so the frontend can seed the
-  token on boot if login-CSRF hardening is wanted later.
+- Refresh cookie scoped to `Path=/api/v1/auth/`.
+- Logout **cannot** revoke an already-issued access token (stateless JWT); mitigated by the
+  15-minute lifetime plus cookie deletion. (plan §2.7b)
+- Login/logout are `AllowAny`: an expired access token must never block logging out.
 
 ---
 
 ## Phase 4 — Users, groups, permissions `[x] COMPLETE`
 
-**Constraint:** class-based views only. No ViewSets, no routers, no `@action`.
-See DEVELOPMENT_PLAN.md §2.8.
-
 - [x] `StrictDjangoModelPermissions` (requires `view_*` on GET)
-- [x] User management API — list / create / retrieve / update / deactivate / set-password
-- [x] `UserListSerializer` / `UserDetailSerializer` / `UserWriteSerializer`
-- [x] Assign groups + direct permissions
-- [x] Group management API + permission assignment
-- [x] `GET /api/v1/admin/permissions/` grouped by app/model
-- [x] Privilege-escalation guards:
-  - [x] may only grant permissions the actor holds
-  - [x] non-superuser cannot set `is_superuser`
-  - [x] cannot deactivate self
-  - [x] cannot deactivate the last active superuser
-- [x] Bootstrap groups data migration (Administrators / Content Managers / Editors / Media Managers)
-- [x] Tests: permission matrix per role, escalation guards
+- [x] `AdminListCreateAPIView` / `AdminRetrieveUpdateDestroyAPIView` base classes
+- [x] User list / create / retrieve / update, with filters, search, ordering
+- [x] `UserDeactivateAPIView` / `UserActivateAPIView` / `UserSetPasswordAPIView`
+- [x] Group list / create / detail / update / delete
+- [x] `GET /admin/permissions/` grouped by app and model
+- [x] Escalation guards: grant-only-what-you-hold · group assignment checked the same way ·
+      superuser-only flags · no self-deactivation · last superuser protected
+- [x] Bootstrap roles in `accounts/groups.py` + migration + `sync_cms_groups` command
+- [x] 39 tests
+
+**Notes**
+
+- Users are **never deleted**, only deactivated - `DELETE /users/{id}/` returns 405.
+- `sync_cms_groups` **must be re-run after each content phase**; the roles grant whatever
+  models exist when synced.
 
 ---
 
-**Phase 4 notes**
+## Phase 5 — Media Library
 
-- Class-based views throughout; no ViewSets, no routers, no `@action`. What would
-  have been router actions are their own classes: `UserDeactivateAPIView`,
-  `UserActivateAPIView`, `UserSetPasswordAPIView`.
-- Users are **never deleted**, only deactivated - DELETE on `/users/{id}/` returns
-  405. An account may own blog posts and audit history, and deactivation reverses.
-- `sync_cms_groups` currently grants 12 permissions to Administrators and 0 to the
-  content roles, because the content apps have no models yet. **Re-run it after
-  Phases 6-9** to pick up the new models.
-- 39/39 tests pass, most of them on the escalation guards.
-
-## Phase 5 — Audit
-
-- [ ] `AuditLog` model + indexes
-- [ ] `AuditLogMixin` for generic CBVs (`perform_create` / `perform_update` with
-      before-snapshot / `perform_destroy`)
-- [ ] Field denylist (`password`, `token`, `secret`, `key`, `session`)
-- [ ] Diff builder → `{"field": {"old": ..., "new": ...}}`
-- [ ] LOGIN / LOGOUT logging in the auth views
-- [ ] `GET /api/v1/admin/audit-logs/` — read-only, paginated
-- [ ] Filters: `user`, `action`, `content_type`, `object_id`, date range; search; ordering
-- [ ] Tests: create/update/delete produce correct diffs; passwords never appear in `changes`
-
----
-
-## Phase 6 — Media Library
-
-- [ ] `MediaAsset` model + constraints + `checksum` index
-- [ ] UUID-prefixed `upload_to` callable
+- [ ] `MediaAsset` model + `CheckConstraint`s + `checksum` index
+- [ ] UUID-prefixed `upload_to`; user filename never determines uniqueness
 - [ ] `relative_path` property
-- [ ] Upload validation: extension allowlist, MIME sniff, max size, Pillow verify, dimension caps
+- [ ] Upload validation: extension allowlist, MIME sniff, max size, dimension caps,
+      Pillow verify (a `.jpg` that is not an image must be rejected)
 - [ ] Image metadata extraction (width / height / size / mime)
 - [ ] YouTube URL validation + video-id extraction + thumbnail URL
-- [ ] `MediaReferenceField` (read → path, write → id-or-path, existence validation)
-- [ ] `POST /api/v1/admin/media/upload/`
-- [ ] `POST /api/v1/admin/media/youtube/`
-- [ ] `GET/PATCH/DELETE /api/v1/admin/media/` + `{id}/` (409 on PROTECT violation)
-- [ ] `GET /api/v1/admin/media/{id}/usage/` — where an asset is referenced
+- [ ] **`MediaReferenceField`** - read -> path, write -> id-or-path, existence validated.
+      The single place plan §2.1 is enforced; everything later depends on it.
+- [ ] `POST /admin/media/upload/`
+- [ ] `POST /admin/media/youtube/`
+- [ ] `GET/PATCH/DELETE /admin/media/` + `{id}/` (409 on PROTECT violation)
+- [ ] `GET /admin/media/{id}/usage/` - where an asset is referenced
 - [ ] Pagination, `?search=`, `?media_type=`, `?source_type=`, `?ordering=`
-- [ ] Tests: rejects non-image `.jpg`, rejects oversize, dedupes by checksum, YouTube parsing,
-      delete-in-use returns 409
+- [ ] Tests: rejects non-image `.jpg`, rejects oversize, dedupes by checksum,
+      YouTube parsing, delete-in-use returns 409
+- [ ] `manage.py sync_cms_groups`
 
 ---
 
-## Phase 7 — Master content
-
-### Prerequisite: survey the Next.js UI
-
-- [ ] Component-level survey of `archethos-nextjs/archethos` to derive real fields
-      per section/page (DEVELOPMENT_PLAN.md §16c)
-- [ ] Decide: `/locations` -> `Location` master model or static page sections?
-- [ ] Decide: `/legal/privacy` + `/legal/terms` -> slug-keyed `LegalPage` model
-- [ ] Confirm `VastuPage` can be dropped (no such route exists)
-- [ ] Confirm `/gallery` is a full page, so `GallerySection` is page-level reusable
-- [ ] Align public blog routes with the frontend's `/journal/...` naming
-
-### Models
+## Phase 6 — Master content
 
 - [ ] `Service`
 - [ ] `Project` + `ProjectGalleryItem`
 - [ ] `BlogCategory` + `BlogPost`
 - [ ] `FAQ`
-- [ ] Indexes: slugs, `(status, published_at)`, `(section_id, order)`
-- [ ] `CheckConstraint` for `published_at` consistency
+- [ ] `Counter` (prefix, content, postfix, subtitle, description) - plan §5.5
+- [ ] Indexes: slugs, `(status, published_at)`
 - [ ] `published_at` auto-set on first transition to PUBLISHED
-
-### Per model: `List` / `Detail` / `Write` / `Public` serializers
-
-- [ ] Service
-- [ ] Project
-- [ ] BlogPost
-- [ ] BlogCategory
-- [ ] FAQ
-
-### APIs
-
-- [ ] `AdminListCreateAPIView` + `AdminRetrieveUpdateDestroyAPIView` base classes
-      (envelope + pagination + filters + audit + serializer dispatch)
-- [ ] Admin CRUD: projects, services, blogs, blog-categories, faqs
-- [ ] `projects/{id}/gallery/` — list / add / update / remove / reorder
+- [ ] Four serializers each: List / Detail / Write / Public
+- [ ] Admin CRUD for all six
+- [ ] `projects/{id}/gallery/` list / add / update / remove / reorder
 - [ ] `blogs/{id}/publish/` and `unpublish/`
 - [ ] Public read-only: projects, services, blogs, faqs (list + `{slug}`)
-- [ ] Public filters: `?featured=`, `?service=`, `?year=`, `?status=`, `?category=`
-- [ ] Tests: unpublished/draft content never reachable publicly; slug uniqueness; permission matrix
-- [ ] Run `manage.py sync_cms_groups` so the CMS roles pick up the new models
+- [ ] Public filters: `?featured=` `?service=` `?year=` `?status=` `?category=`
+- [ ] Tests: draft content unreachable publicly; slug uniqueness; permission matrix
+- [ ] `manage.py sync_cms_groups`
 
 ---
 
-## Phase 8 — Sections
+## Phase 7 — Sections
 
-### Models
-
-- [ ] `SectionBase` with **`internal_label`** (required admin-facing name, e.g.
-      "Home - main hero" vs "About - studio hero"; never exposed publicly)
-- [ ] `HomeHeroSection` · `AboutHeroSection` · `SimpleHeroSection`
-- [ ] `StudioIntroSection` + `StudioStatItem`
-- [ ] `FeaturedProjectsSection` + `FeaturedProjectItem`
-- [ ] `ServicesSection` + `ServiceSectionItem`
-- [ ] `GallerySection` + `GallerySectionItem`
-- [ ] `FAQSection` + `FAQSectionItem`
+- [ ] **Prerequisite:** component-level survey of the Next.js UI to derive real fields per
+      section type (plan §20). Do not guess.
+- [ ] `Section` concrete MTI base: `section_type` (set in `save()`, never client-supplied),
+      `internal_label`
+- [ ] `SectionType` choices
+- [ ] `HeroSection`
+- [ ] `IntroSection`
+- [ ] `CounterSection`
+- [ ] `FeaturedProjectsSection`
+- [ ] `ServicesSection`
+- [ ] `GallerySection` (layout_variant GRID / MASONRY / SLIDER)
+- [ ] `FAQSection`
 - [ ] `CTASection`
 - [ ] `ContactInfoSection`
-- [ ] `UniqueConstraint(section, content)` on every item model
-
-### APIs
-
-- [ ] `SectionItem*APIView` base classes — list / add / update / remove / reorder
-- [ ] Atomic reorder: validate ownership, no duplicate ids, no unknown ids, `bulk_update`
-- [ ] CRUD + `List`/`Detail`/`Write` serializers for all 10 section types
-- [ ] Detail responses include items; list responses are lightweight + `items_count`
-- [ ] Item routes mounted for all 5 ordered relationships
-- [ ] Parent-derived permission class for item endpoints
-- [ ] Tests: reorder atomicity + validation; duplicate-content rejection; deleting a section
-      leaves master content intact
+- [ ] `RichTextSection` (carries `/legal/privacy` and `/legal/terms`)
+- [ ] `SECTION_REGISTRY` with `SectionSpec` (model, 4 serializers, url_segment,
+      public_queryset)
+- [ ] Admin section URLs **generated from the registry**, not hand-written per type
+- [ ] `GET /admin/sections/` - all sections, `?section_type=` filter, paginated
+- [ ] Per-type CRUD: `sections/{type}/` and `sections/{type}/{id}/`
+- [ ] Tests: `section_type` cannot be set by the client and matches the concrete class
+- [ ] `manage.py sync_cms_groups`
 
 ---
 
-## Phase 9 — Pages & Company
+## Phase 8 — Section items + reorder
 
-- [ ] `SingletonModel` applied to all page models
-- [ ] `HomePage` · `AboutPage` · `ContactPage` · `VastuPage`
-- [ ] `ProjectsListingPage` · `ServicesListingPage` · `BlogListingPage`
-- [ ] `Company` singleton (JSON fields + inject fields + global SEO)
-- [ ] JSON schema validators for `social_urls`, `contacts`, `header_links`, `footer_links`
-- [ ] Superuser-only guard on `head_inject` / `body_inject`
-- [ ] Data migration seeding one row per page + `Company`
-- [ ] Admin page APIs: `GET` / `PATCH` per page, assigning sections by id
-- [ ] `GET` / `PATCH /api/v1/admin/company/`
-- [ ] Tests: singleton enforcement; non-superuser cannot write inject fields
+- [ ] `FAQSectionItem`
+- [ ] `CounterSectionItem`
+- [ ] `FeaturedProjectItem` (+ `display_variant`)
+- [ ] `ServiceSectionItem` (+ `label_override`)
+- [ ] `GallerySectionItem` (+ `caption`)
+- [ ] `UniqueConstraint(section, content)` on each; **no** constraint on `order`
+- [ ] `SectionItemListCreateAPIView` / `SectionItemDetailAPIView` base classes
+- [ ] `ReorderAPIView` base - validates ownership, no duplicate ids, no unknown ids,
+      then `transaction.atomic()` + `bulk_update(["order"])`
+- [ ] Item routes generated from the registry for every type that has items
+- [ ] Parent-derived permissions (`sections.change_faqsection`, not a per-item permission)
+- [ ] Detail responses include items; list responses stay light with `items_count`
+- [ ] Tests: reorder atomicity + validation; duplicate content rejected; deleting a section
+      leaves master content intact (PROTECT)
 
 ---
 
-## Phase 10 — Aggregate public APIs
+## Phase 9 — Pages + composition
 
-- [ ] `PAGE_REGISTRY` + `PageSpec`
-- [ ] `for_public()` selector on every page model (full select_related / prefetch_related)
-- [ ] Strongly typed aggregate serializer per page
-- [ ] `GET /api/v1/public/pages/{slug}/` (404 on unknown slug, never paginated)
-- [ ] `GET /api/v1/public/company/`
+- [ ] `Page` - name, slug (unique), `is_published`, SEO
+- [ ] `PageSection` - page, section, `section_key`, `order`, `is_visible`
+- [ ] `UniqueConstraint(page, section_key)` - and **no** `unique(page, order)` (plan §2.3)
+- [ ] Page CRUD (list light + paginated, detail with composition)
+- [ ] `GET /admin/pages/{id}/sections/` - list composition
+- [ ] `POST /admin/pages/{id}/sections/` - attach a section
+- [ ] `PATCH /admin/pages/{id}/sections/{ps_id}/` - key / visibility / order
+- [ ] `DELETE /admin/pages/{id}/sections/{ps_id}/` - detach; **must not delete the Section**
+- [ ] `PATCH /admin/pages/{id}/sections/reorder/` - atomic
+- [ ] `GET /admin/sections/{type}/{id}/usage/` - which pages use this section
+- [ ] Seed the ten `Page` rows matching the frontend routes (plan §18)
+- [ ] Tests: same section type twice on one page via different keys; duplicate key rejected;
+      detaching leaves the section intact; reorder atomicity
+- [ ] `manage.py sync_cms_groups`
+
+---
+
+## Phase 10 — Public aggregate API
+
+- [ ] `GET /api/v1/public/pages/{slug}/`
+- [ ] Batched per-type resolution driven by `SECTION_REGISTRY.public_queryset`
+      (**not** `InheritanceManager`) - plan §13
+- [ ] Only `is_visible=True`, ordered by `PageSection.order`
+- [ ] Each entry emits `id` / `key` / `type` / `data`; `internal_label` never exposed
+- [ ] Unpublished page -> 404; unknown slug -> 404
 - [ ] ETag + `Cache-Control` from max `updated_at`
-- [ ] `assertNumQueries` test per aggregate endpoint
-- [ ] Tests: unpublished content excluded from aggregates; SEO block present
+- [ ] **`assertNumQueries` test** pinning the query count so it cannot silently regress
+- [ ] Test: query count is flat as gallery items scale from 4 to 40
+- [ ] Test: draft master content never surfaces inside a section
 
 ---
 
-## Phase 11 — Search & enquiries
+## Phase 11 — Search, enquiries, company
 
 - [ ] `pg_trgm` + `unaccent` extension migration
-- [ ] `search_vector` + GIN index on Project and BlogPost
-- [ ] Weighted vector population on save
+- [ ] `search_vector` + GIN index on Project and BlogPost, weighted
 - [ ] `GET /api/v1/public/search/?q=` across projects + services + blogs
-- [ ] `Enquiry` model + indexes
-- [ ] `POST /api/v1/public/enquiries/` — rate-limited (`django-ratelimit`) + honeypot
-- [ ] Admin: list / retrieve / mark-read / delete enquiries, with filters
-- [ ] Tests: search returns only live content; rate limit returns 429
+- [ ] `Company` singleton + JSON schema validators
+- [ ] **Superuser-only guard on `head_inject` / `body_inject`** (stored-XSS vector)
+- [ ] `GET/PATCH /admin/company/` · `GET /public/company/`
+- [ ] `Enquiry` model
+- [ ] `POST /public/enquiries/` - rate-limited + honeypot
+- [ ] Admin enquiry list / detail / mark-read / delete
+- [ ] Tests: search returns only live content; rate limit returns 429; non-superuser cannot
+      write inject fields
 
 ---
 
-## Phase 12 — Hardening & delivery
+## Phase 12 — Audit, hardening, delivery
 
-- [ ] Django Admin registration for all models (dev/superuser use only)
-- [ ] OpenAPI schema review + endpoint descriptions + `/api/v1/schema/docs/`
+- [ ] `AuditLog` model + indexes
+- [ ] `AuditLogMixin` on the admin base view classes (before-snapshot diff)
+- [ ] Denylist (`password`, `token`, `secret`, `key`, `session`)
+- [ ] LOGIN / LOGOUT / PUBLISH / UNPUBLISH logging
+- [ ] `GET /admin/audit-logs/` - read-only, paginated, filter by user / action /
+      content_type / object_id / date range
+- [ ] Tests: diffs correct; passwords never appear in `changes`
+- [ ] Django Admin registration (dev and superuser rescue only)
+- [ ] OpenAPI polish + `/api/v1/schema/docs/`
 - [ ] `seed_demo_data` management command
-- [ ] Production settings: `DEBUG=False`, `ALLOWED_HOSTS`, HSTS, SSL redirect, secure cookies
-- [ ] Full security checklist pass (plan §14)
-- [ ] `README.md`: setup, env vars, CORS/CSRF for Next.js, auth flow, `credentials: "include"`
+- [ ] Production settings pass + full security checklist (plan §15)
+- [ ] `README.md`: setup, env vars, CORS/CSRF for Next.js, auth flow,
+      `credentials: "include"`, section registry contract
 - [ ] Deployment notes (gunicorn, static/media serving, migrations)
-- [ ] Final test suite run
+- [ ] Final full test run
