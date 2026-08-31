@@ -1,3 +1,5 @@
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.db import models
 
 from archethosbackend.apps.core.models import (
@@ -42,12 +44,39 @@ class Project(SluggedModel, PublishableModel, SEOModel, TimeStampedModel):
         "content.Service", blank=True, related_name="projects"
     )
 
+    #: Weighted tsvector, maintained in save(). Never edited by hand.
+    search_vector = SearchVectorField(null=True, editable=False)
+
     class Meta:
         ordering = ["-project_year", "-created_at"]
         indexes = [
             models.Index(fields=["status", "published_at"]),
             models.Index(fields=["is_featured", "status"]),
+            GinIndex(fields=["search_vector"]),
         ]
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.update_search_vector()
+
+    def update_search_vector(self):
+        """Recompute the tsvector for this row.
+
+        A follow-up UPDATE rather than a value computed in Python, because the
+        stemming and weighting are Postgres's job. One extra query per save,
+        which is nothing at CMS write volume.
+
+        Rows changed by `update()` or `bulk_update()` bypass this — run
+        `manage.py rebuild_search_index` after any bulk edit.
+        """
+        type(self).objects.filter(pk=self.pk).update(
+            search_vector=(
+                SearchVector("title", weight="A", config="english")
+                + SearchVector("short_description", weight="B", config="english")
+                + SearchVector("location", weight="B", config="english")
+                + SearchVector("description", weight="C", config="english")
+            )
+        )
 
 
 class ProjectGalleryItem(OrderedItemModel, TimeStampedModel):

@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-10 complete · Phase 11 (search, enquiries) next · 234 tests passing
+**Progress:** Phases 1-11 complete · Phase 12 (audit, hardening) next · 269 tests passing
 
 **Standing constraints — apply to every phase**
 
@@ -330,21 +330,47 @@ _None._
 - Verified live: `/pages/legal/privacy/` resolves through `<path:slug>`; draft
   pages 404; CORS headers correct for `localhost:3000`.
 
-## Phase 11 — Search, enquiries, company
+## Phase 11 — Search, enquiries, company `[x] COMPLETE`
 
-- [ ] `pg_trgm` + `unaccent` extension migration
-- [ ] `search_vector` + GIN index on Project and BlogPost, weighted
-- [ ] `GET /api/v1/public/search/?q=` across projects + services + blogs
-- [ ] `Company` singleton + JSON schema validators
-- [ ] **Superuser-only guard on `head_inject` / `body_inject`** (stored-XSS vector)
-- [ ] `GET/PATCH /admin/company/` · `GET /public/company/`
-- [ ] `Enquiry` model
-- [ ] `POST /public/enquiries/` - rate-limited + honeypot
-- [ ] Admin enquiry list / detail / mark-read / delete
-- [ ] Tests: search returns only live content; rate limit returns 429; non-superuser cannot
+- [x] `pg_trgm` + `unaccent` extension migration
+- [x] `search_vector` + GIN index on Project and BlogPost, weighted
+- [x] `GET /api/v1/public/search/?q=` across projects + services + blogs
+- [x] `Company` singleton + JSON schema validators
+- [x] **Superuser-only guard on `head_inject` / `body_inject`** (stored-XSS vector)
+- [x] `GET/PATCH /admin/company/` · `GET /public/company/`
+- [x] `Enquiry` model
+- [x] `POST /public/enquiries/` - rate-limited + honeypot
+- [x] Admin enquiry list / detail / mark-read / delete
+- [x] Tests: search returns only live content; rate limit returns 429; non-superuser cannot
       write inject fields
 
 ---
+
+**Phase 11 notes**
+
+- Search is **two passes**: weighted full-text against the tsvector, then trigram
+  similarity on `title` as a fallback. They fail differently - full-text tokenises,
+  so a misspelling produces a token matching nothing at all, while trigram distance
+  still finds it. Verified live: `?q=courtyrd` returns "Courtyard Villa".
+- The fallback only runs when full-text returns nothing, so it never dilutes good
+  results.
+- `websearch_to_tsquery` is used rather than `plainto_tsquery`: it accepts quoted
+  phrases, `OR` and `-word`, and never raises on malformed input. Tested with `"(((".`
+- The vector is maintained in `save()` as a follow-up UPDATE, because the stemming
+  and weighting are Postgres's job. `update()` / `bulk_update()` bypass it by
+  design - `manage.py rebuild_search_index` repairs that.
+- **Found while testing:** a stale vector after a bulk *title* change is masked by
+  the trigram fallback, which reads the live column. Only a body-only term exposes
+  the staleness. Both behaviours are now pinned by tests.
+- `pg_trgm` and `unaccent` live in their own migration: they are database-wide and
+  need superuser on first install, so on a managed host that is the one migration
+  to run by hand.
+- The public enquiry endpoint is the only place an anonymous visitor writes to the
+  database. It carries a 10/h per-IP rate limit (429) and a honeypot whose response
+  is byte-identical to a success - telling a bot it was caught only teaches it to
+  avoid the trap.
+- Enquiries are read-only in the admin apart from `is_read`: a submission is a
+  record of what someone actually sent.
 
 ## Phase 12 — Audit, hardening, delivery
 

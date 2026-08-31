@@ -27,6 +27,12 @@ from archethosbackend.apps.content.admin_views import (
     ServiceListCreateAPIView,
 )
 
+from archethosbackend.apps.enquiries.views import (
+    EnquiryDetailAPIView,
+    EnquiryListAPIView,
+    EnquiryUnreadCountAPIView,
+)
+
 from archethosbackend.apps.pages.admin_views import (
     CompanyAPIView,
     PageDetailAPIView,
@@ -208,4 +214,12 @@ urlpatterns = [
     ),
     # Site-wide settings (singleton: no id, no list)
     path("company/", CompanyAPIView.as_view(), name="company-detail"),
+    # Enquiries are read-only: they arrive from the public form.
+    path("enquiries/", EnquiryListAPIView.as_view(), name="enquiry-list"),
+    path(
+        "enquiries/unread-count/",
+        EnquiryUnreadCountAPIView.as_view(),
+        name="enquiry-unread-count",
+    ),
+    path("enquiries/<int:pk>/", EnquiryDetailAPIView.as_view(), name="enquiry-detail"),
 ]

@@ -2,6 +2,9 @@
 
 from django.urls import path
 
+from archethosbackend.apps.content.search_views import PublicSearchAPIView
+from archethosbackend.apps.enquiries.views import EnquirySubmitAPIView
+
 from archethosbackend.apps.pages.public_views import (
     PageAggregateAPIView,
     PublicCompanyAPIView,
@@ -47,4 +50,7 @@ urlpatterns = [
     ),
     path("faqs/", PublicFAQListAPIView.as_view(), name="faq-list"),
     path("counters/", PublicCounterListAPIView.as_view(), name="counter-list"),
+    path("search/", PublicSearchAPIView.as_view(), name="search"),
+    # The only place an anonymous visitor writes to the database.
+    path("enquiries/", EnquirySubmitAPIView.as_view(), name="enquiry-submit"),
 ]

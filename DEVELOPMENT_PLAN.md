@@ -906,7 +906,7 @@ page. The `/legal/*` pages are composed from a `RichTextSection`.
 | 8 | Section items + atomic bulk reorder | **done** |
 | 9 | `Page` + `PageSection` + composition, visibility, reorder APIs | **done** |
 | 10 | Public aggregate `/pages/{slug}/` with batched resolution + `assertNumQueries` | **done** |
-| 11 | PostgreSQL search + `Enquiry` + `Company` | |
+| 11 | PostgreSQL search + `Enquiry` + `Company` | **done** |
 | 12 | Audit, Django Admin, OpenAPI polish, seed command, deployment notes | |
 
 Audit sits late deliberately: `AuditLogMixin` attaches to the view base classes rather than to
