@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phase 1 complete · Phases 2–12 pending
+**Progress:** Phases 1–2 complete · Phase 3 next
 
 ---
 
@@ -36,48 +36,62 @@ _No open blockers._
 
 ---
 
-## Phase 2 — Foundation
+## Phase 2 — Foundation `[x] COMPLETE`
 
 ### Environment
 
-- [ ] Verify Django 6.1 × simplejwt 5.5.1 × `token_blacklist` compatibility **(do this first)**
-- [ ] Install `psycopg[binary]`
-- [ ] `docker compose up -d db` and confirm the container reports healthy
-- [ ] Verify a psql connection from the host on `localhost:${DB_PORT}`
-- [ ] Create `requirements/base.txt`, `dev.txt`, `prod.txt`
-- [ ] `.env.example` with every variable from plan §15
-- [ ] `.env` (gitignored) for local development
-- [ ] `.gitignore` (`.env`, `.venv`, `__pycache__`, `media/`, `db.sqlite3`)
-- [ ] `.env` DB_* values match `docker-compose.yml` (same file feeds both)
+- [x] Verify Django 6.1 × simplejwt 5.5.1 × `token_blacklist` compatibility **(do this first)**
+- [x] Install `psycopg[binary]`
+- [x] `docker compose up -d db` and confirm the container reports healthy
+- [x] Verify a psql connection from the host on `localhost:${DB_PORT}`
+- [x] Create `requirements/base.txt`, `dev.txt`, `prod.txt`
+- [x] `.env.example` with every variable from plan §15
+- [x] `.env` (gitignored) for local development
+- [x] `.gitignore` (`.env`, `.venv`, `__pycache__`, `media/`, `db.sqlite3`)
+- [x] `.env` DB_* values match `docker-compose.yml` (same file feeds both)
 
 ### Project restructure
 
-- [ ] Create `archethosbackend/apps/` package
-- [ ] Move root `medialibrary/` → `apps/media_library/`
-- [ ] Split `settings.py` → `settings/{base,development,production,test}.py`
-- [ ] Point `manage.py`, `wsgi.py`, `asgi.py` at `settings.development`
-- [ ] Configure PostgreSQL from `.env` via `django-environ` (`DB_HOST=localhost`)
-- [ ] `MEDIA_URL` / `MEDIA_ROOT` / static config
+- [x] Create `archethosbackend/apps/` package
+- [x] Move root `medialibrary/` → `apps/media_library/`
+- [x] Split `settings.py` → `settings/{base,development,production,test}.py`
+- [x] Point `manage.py`, `wsgi.py`, `asgi.py` at `settings.development`
+- [x] Configure PostgreSQL from `.env` via `django-environ` (`DB_HOST=localhost`)
+- [x] `MEDIA_URL` / `MEDIA_ROOT` / static config
 
 ### Core app
 
-- [ ] `TimeStampedModel`
-- [ ] `SEOModel` (lazy `"media_library.MediaAsset"` ref)
-- [ ] `SluggedModel` + unique-slug generator utility
-- [ ] `PublishableModel` + `PublishableQuerySet.live()`
-- [ ] `OrderedItemModel`
-- [ ] `SingletonModel` (pinned pk + `CheckConstraint` + `load()`)
+- [x] `TimeStampedModel`
+- [x] `SEOModel` (lazy `"media_library.MediaAsset"` ref)
+- [x] `SluggedModel` + unique-slug generator utility
+- [x] `PublishableModel` + `PublishableQuerySet.live()`
+- [x] `OrderedItemModel`
+- [x] `SingletonModel` (pinned pk + `CheckConstraint` + `load()`)
 
 ### API infrastructure (`apps/api/`)
 
-- [ ] `EnvelopeJSONRenderer`
-- [ ] `envelope_exception_handler` (incl. 409 for `ProtectedError`)
-- [ ] `EnvelopePageNumberPagination`
-- [ ] DRF settings: default auth, permissions, renderer, pagination, filter backends
-- [ ] API versioning + `/api/v1/` router skeleton (`auth/`, `admin/`, `public/`)
-- [ ] CORS + CSRF configuration
-- [ ] drf-spectacular config + postprocessing hooks for the envelope
-- [ ] `/health/` endpoint
+- [x] `EnvelopeJSONRenderer`
+- [x] `envelope_exception_handler` (incl. 409 for `ProtectedError`)
+- [x] `EnvelopePageNumberPagination`
+- [x] DRF settings: default auth, permissions, renderer, pagination, filter backends
+- [x] API versioning + `/api/v1/` router skeleton (`auth/`, `admin/`, `public/`)
+- [x] CORS + CSRF configuration
+- [x] drf-spectacular config + postprocessing hooks for the envelope
+- [x] `/health/` endpoint
+
+
+**Phase 2 notes**
+
+- Django 6.1 x simplejwt 5.5.1 x `token_blacklist` verified working (migrate, issue,
+  rotate, blacklist, reject-reuse). No fallback to 5.2 LTS needed.
+- Postgres publishes on host port **5433**, not 5432 — an unrelated `postgres_db`
+  container (postgres:16) already owns 5432 on this machine.
+- `SECRET_KEY` must contain no `$`: docker-compose reads the same `.env` and would
+  interpolate it. Generate with `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+- PyJWT 2.13 warns on HMAC keys under 32 bytes, so keep `SECRET_KEY` long.
+- 20/20 infrastructure assertions pass (envelope, pagination metadata, error mapping
+  incl. ProtectedError -> 409, live DB health check).
+- No migrations run yet — deliberate, the custom User must be in the first one.
 
 ---
 

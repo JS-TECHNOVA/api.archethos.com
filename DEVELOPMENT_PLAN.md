@@ -13,13 +13,13 @@
 
 | Item | Value |
 |---|---|
-| Django | 6.1 (verify `simplejwt` compatibility first thing in Phase 2; fall back to 5.2 LTS if broken) |
+| Django | 6.1 — verified working with simplejwt 5.5.1 + `token_blacklist` (Phase 2) |
 | DRF | 3.18 |
-| DB | PostgreSQL 17 via Docker (`docker-compose.yml`); `psycopg[binary]` — **not yet installed** |
+| DB | PostgreSQL 17.11 via Docker on host port **5433**; `psycopg` 3.3.4 |
 | Auth | `djangorestframework-simplejwt` 5.5.1 + `token_blacklist` |
 | Already installed | `django-cors-headers`, `django-filter`, `django-environ`, `drf-spectacular`, `django-ratelimit`, `django-extensions`, `Pillow` |
-| To install | `psycopg[binary]`; (prod) `gunicorn`, `whitenoise`; (test) `pytest-django`, `factory-boy` |
-| Existing code | bare `startproject` + empty root-level `medialibrary` app, **no migrations yet** |
+| To install | (prod) `gunicorn`, `whitenoise`; (test) `pytest-django`, `factory-boy` |
+| Existing code | Phase 2 complete: `apps/` structure, split settings, API infrastructure. **No migrations run yet** — the custom User must land in the first one. |
 
 No migrations exist, so the custom user model and the `apps/` restructure are both still free.
 
@@ -781,8 +781,15 @@ docker compose down -v           # stop AND destroy the volume (wipes the databa
 ```
 
 `docker-compose.yml` reads `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_PORT` from the same
-`.env` Django uses, so the two can never drift. Defaults if unset: `archethos` /
-`archethos` / `archethos` / `5432`.
+`.env` Django uses, so the two can never drift.
+
+**This machine uses host port 5433** — an unrelated `postgres_db` container already owns
+5432. The container still listens on 5432 internally; only the published port differs.
+
+**No `$` in any `.env` value.** Compose interpolates `$VAR` when it reads the file, so a
+`SECRET_KEY` containing `$` is silently mangled. Generate keys with
+`python -c "import secrets; print(secrets.token_urlsafe(48))"` — url-safe, and PyJWT 2.13
+warns below 32 bytes anyway.
 
 Django connects with `DB_HOST=localhost` (the container publishes `5432` to the host). Data
 persists in the named volume `archethos_pgdata`.
@@ -796,5 +803,5 @@ A healthcheck is defined so Phase 2 can wait for readiness before the first `mig
 | Item | Status |
 |---|---|
 | PostgreSQL connection credentials | **resolved** — Dockerised Postgres 17, credentials from `.env` (see §16b) |
-| Django 6.1 × simplejwt 5.5.1 × `token_blacklist` compatibility | verify as the first task of Phase 2; fall back to Django 5.2 LTS if broken |
+| Django 6.1 × simplejwt 5.5.1 × `token_blacklist` compatibility | **resolved** — verified working in Phase 2 |
 | Production deployment topology (same registrable domain vs. cross-site) | default `SameSite=Lax`; revisit before production |
