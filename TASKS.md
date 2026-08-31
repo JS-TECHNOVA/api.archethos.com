@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-8 complete · Phase 9 (pages) next · 176 tests passing
+**Progress:** Phases 1-9 complete · Phase 10 (aggregate API) next · 207 tests passing
 
 **Standing constraints — apply to every phase**
 
@@ -262,24 +262,43 @@ _None._
 
 ---
 
-## Phase 9 — Pages + composition
+## Phase 9 — Pages + composition `[x] COMPLETE`
 
-- [ ] `Page` - name, slug (unique), `is_published`, SEO
-- [ ] `PageSection` - page, section, `section_key`, `order`, `is_visible`
-- [ ] `UniqueConstraint(page, section_key)` - and **no** `unique(page, order)` (plan §2.3)
-- [ ] Page CRUD (list light + paginated, detail with composition)
-- [ ] `GET /admin/pages/{id}/sections/` - list composition
-- [ ] `POST /admin/pages/{id}/sections/` - attach a section
-- [ ] `PATCH /admin/pages/{id}/sections/{ps_id}/` - key / visibility / order
-- [ ] `DELETE /admin/pages/{id}/sections/{ps_id}/` - detach; **must not delete the Section**
-- [ ] `PATCH /admin/pages/{id}/sections/reorder/` - atomic
-- [ ] `GET /admin/sections/{type}/{id}/usage/` - which pages use this section
-- [ ] Seed the ten `Page` rows matching the frontend routes (plan §18)
-- [ ] Tests: same section type twice on one page via different keys; duplicate key rejected;
+- [x] `Page` - name, slug (unique), `is_published`, SEO
+- [x] `PageSection` - page, section, `section_key`, `order`, `is_visible`
+- [x] `UniqueConstraint(page, section_key)` - and **no** `unique(page, order)` (plan §2.3)
+- [x] Page CRUD (list light + paginated, detail with composition)
+- [x] `GET /admin/pages/{id}/sections/` - list composition
+- [x] `POST /admin/pages/{id}/sections/` - attach a section
+- [x] `PATCH /admin/pages/{id}/sections/{ps_id}/` - key / visibility / order
+- [x] `DELETE /admin/pages/{id}/sections/{ps_id}/` - detach; **must not delete the Section**
+- [x] `PATCH /admin/pages/{id}/sections/reorder/` - atomic
+- [x] `GET /admin/sections/{type}/{id}/usage/` - which pages use this section
+- [x] Seed the ten `Page` rows matching the frontend routes (plan §18)
+- [x] Tests: same section type twice on one page via different keys; duplicate key rejected;
       detaching leaves the section intact; reorder atomicity
-- [ ] `manage.py sync_cms_groups`
+- [x] `manage.py sync_cms_groups`
 
 ---
+
+**Phase 9 notes**
+
+- `Page` uses `status` / `published_at` like every content model, not a bespoke
+  `is_published`. One meaning of "live" across the system (plan §2.6).
+- **Bug caught:** `legal/privacy` is a real frontend route, but `SlugField` forbids
+  `/`. The seed migration created it anyway because `RunPython` skips validation,
+  so the API would have rejected editing a row that already existed. `slug` is now
+  a validated `CharField`; Phase 10's public route must use `<path:slug>`.
+- The 10 seeded pages start as DRAFT: a page with no sections has nothing to
+  render, so publishing is deliberate.
+- Tested and working: the same section on several pages, and the same section
+  *type* twice on one page under different keys - the two things the old
+  fixed-slot design could not express at all.
+- `is_visible` is per placement, so hiding a shared CTA on one page leaves it
+  visible elsewhere.
+- Section `usage` and `used_by_count` restored now that `PageSection` exists.
+- `Company` inject fields are superuser-only, tested both ways; JSON fields have
+  shape validators.
 
 ## Phase 10 — Public aggregate API
 

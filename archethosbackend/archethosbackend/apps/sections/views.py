@@ -73,7 +73,7 @@ class SectionBrowseAPIView(AdminListAPIView):
     """
 
     ordering = ["-created_at", "-id"]
-    queryset = Section.objects.all()
+    queryset = Section.objects.annotate(used_by_count=Count("page_usages"))
     list_serializer_class = SectionBrowseSerializer
     filterset_fields = ["section_type"]
     search_fields = ["internal_label"]
@@ -198,11 +198,31 @@ class SectionDetailAPIView(
         description=(
             "Deletes the section and its item rows only. Master content it "
             "references is PROTECTed and survives. A section still attached to a "
-            "page can be deleted, which blanks that slot."
+            "page can be deleted, which blanks that slot - call the usage "
+            "endpoint first."
         ),
     )
     def delete(self, request, *args, **kwargs):
         return super().delete(request, *args, **kwargs)
+
+
+class SectionUsageAPIView(SectionTypeMixin, APIView):
+    """Which pages compose this section, before you delete or edit it."""
+
+    envelope_message = "Usage retrieved successfully"
+
+    def get_required_permissions(self):
+        return [_perm(self.spec.model, "view")]
+
+    @extend_schema(
+        tags=["admin:sections"],
+        summary="List pages using this section",
+        responses={200: None},
+    )
+    def get(self, request, segment, pk):
+        section = generics.get_object_or_404(self.spec.model, pk=pk)
+        usage = section.used_by_pages
+        return Response({"count": len(usage), "used_by": usage})
 
 
 # ─── Section items ───────────────────────────────────────────────────────────

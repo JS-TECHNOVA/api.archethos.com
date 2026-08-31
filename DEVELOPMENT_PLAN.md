@@ -346,7 +346,15 @@ the number.
 
 Holds `Page`, `PageSection` and the `Company` singleton.
 
-**`Page`** — SEO + TimeStamped · `name`, `slug` (unique, indexed), `is_published`.
+**`Page`** — Publishable + SEO + TimeStamped · `name`, `slug` (unique).
+
+Uses the same `status` / `published_at` pair as every content model rather than a
+bespoke `is_published` boolean, so "is this live?" means exactly one thing across the
+system (§2.6).
+
+`slug` is a validated `CharField`, **not** a `SlugField`: page slugs mirror frontend
+routes, which nest — `legal/privacy` is real, and `SlugField` forbids `/`. The public
+route therefore uses `<path:slug>`, not `<slug:slug>`.
 
 No `page_type`. Home, About, Contact, Gallery, Locations and both Legal pages are all just
 `Page` rows, created by an administrator without a migration.
@@ -891,11 +899,11 @@ page. The `/legal/*` pages are composed from a `RichTextSection`.
 | 2 | Foundation: `apps/`, settings, Postgres, envelope + pagination + exceptions, core abstracts | **done** |
 | 3 | Cookie JWT auth on `auth.User` | **done** |
 | 4 | Users, groups, permissions, escalation guards | **done** |
-| 5 | Media Library + `MediaReferenceField` | next |
-| 6 | Master content: FAQ, Counter, Project, Service, BlogPost, BlogCategory | |
-| 7 | `Section` MTI base + concrete sections + `SECTION_REGISTRY` + section CRUD | |
-| 8 | Section items + atomic bulk reorder | |
-| 9 | `Page` + `PageSection` + composition, visibility, reorder APIs | |
+| 5 | Media Library + `MediaReferenceField` | **done** |
+| 6 | Master content: FAQ, Counter, Project, Service, BlogPost, BlogCategory | **done** |
+| 7 | `Section` MTI base + concrete sections + `SECTION_REGISTRY` + section CRUD | **done** |
+| 8 | Section items + atomic bulk reorder | **done** |
+| 9 | `Page` + `PageSection` + composition, visibility, reorder APIs | **done** |
 | 10 | Public aggregate `/pages/{slug}/` with batched resolution + `assertNumQueries` | |
 | 11 | PostgreSQL search + `Enquiry` + `Company` | |
 | 12 | Audit, Django Admin, OpenAPI polish, seed command, deployment notes | |

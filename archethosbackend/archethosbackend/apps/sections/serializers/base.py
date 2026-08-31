@@ -20,11 +20,17 @@ class SectionBrowseSerializer(serializers.ModelSerializer):
     section_type_display = serializers.CharField(
         source="get_section_type_display", read_only=True
     )
+    #: How many pages compose this section — annotated by the view, so
+    #: listing N sections stays one query.
+    used_by_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Section
-        # `used_by_count` joins this row once PageSection exists (Phase 9).
-        fields = SECTION_BASE_FIELDS + ["section_type_display", "created_at"]
+        fields = SECTION_BASE_FIELDS + [
+            "section_type_display",
+            "used_by_count",
+            "created_at",
+        ]
 
 
 class BaseSectionListSerializer(serializers.ModelSerializer):

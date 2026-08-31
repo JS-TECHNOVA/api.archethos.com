@@ -27,6 +27,15 @@ from archethosbackend.apps.content.admin_views import (
     ServiceListCreateAPIView,
 )
 
+from archethosbackend.apps.pages.admin_views import (
+    CompanyAPIView,
+    PageDetailAPIView,
+    PageListCreateAPIView,
+    PageSectionDetailAPIView,
+    PageSectionListCreateAPIView,
+    PageSectionReorderAPIView,
+)
+
 from archethosbackend.apps.sections.views import (
     SectionBrowseAPIView,
     SectionDetailAPIView,
@@ -35,6 +44,7 @@ from archethosbackend.apps.sections.views import (
     SectionItemReorderAPIView,
     SectionListCreateAPIView,
     SectionTypeCatalogueAPIView,
+    SectionUsageAPIView,
 )
 
 from archethosbackend.apps.media_library.views import (
@@ -159,6 +169,11 @@ urlpatterns = [
         name="section-detail",
     ),
     path(
+        "sections/<slug:segment>/<int:pk>/usage/",
+        SectionUsageAPIView.as_view(),
+        name="section-usage",
+    ),
+    path(
         "sections/<slug:segment>/<int:pk>/items/",
         SectionItemListCreateAPIView.as_view(),
         name="section-item-list",
@@ -173,4 +188,24 @@ urlpatterns = [
         SectionItemDetailAPIView.as_view(),
         name="section-item-detail",
     ),
+    # ── Pages and composition ─────────────────────────────────────────────────
+    path("pages/", PageListCreateAPIView.as_view(), name="page-list"),
+    path("pages/<int:pk>/", PageDetailAPIView.as_view(), name="page-detail"),
+    path(
+        "pages/<int:pk>/sections/",
+        PageSectionListCreateAPIView.as_view(),
+        name="page-section-list",
+    ),
+    path(
+        "pages/<int:pk>/sections/reorder/",
+        PageSectionReorderAPIView.as_view(),
+        name="page-section-reorder",
+    ),
+    path(
+        "pages/<int:pk>/sections/<int:page_section_id>/",
+        PageSectionDetailAPIView.as_view(),
+        name="page-section-detail",
+    ),
+    # Site-wide settings (singleton: no id, no list)
+    path("company/", CompanyAPIView.as_view(), name="company-detail"),
 ]

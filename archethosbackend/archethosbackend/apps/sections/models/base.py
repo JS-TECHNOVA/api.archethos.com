@@ -74,6 +74,21 @@ class Section(TimeStampedModel):
             self.section_type = self.SECTION_TYPE
         super().save(*args, **kwargs)
 
-    # NOTE: `used_by_pages` lives here once PageSection exists (Phase 9). Sections
-    # are shared, so the admin must show which pages compose one before offering
-    # a delete.
+    @property
+    def used_by_pages(self):
+        """Pages currently composing this section.
+
+        Sections are shared, so the admin must show this before offering a
+        delete: removing one can blank a slot on a page the editor was not
+        looking at.
+        """
+        return [
+            {
+                "page_id": usage.page_id,
+                "page_name": usage.page.name,
+                "page_slug": usage.page.slug,
+                "section_key": usage.section_key,
+                "is_visible": usage.is_visible,
+            }
+            for usage in self.page_usages.select_related("page")
+        ]
