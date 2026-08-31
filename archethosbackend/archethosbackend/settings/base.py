@@ -109,6 +109,15 @@ DATABASES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Django's built-in auth.User is used as-is. Login is by email, so an email
+# backend is added alongside the default one (which Django Admin still needs for
+# username login). A case-insensitive unique index on auth_user.email is created
+# in accounts/migrations/0001 to keep email login unambiguous.
+AUTHENTICATION_BACKENDS = [
+    "archethosbackend.apps.accounts.backends.EmailBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -137,8 +146,7 @@ MAX_UPLOAD_SIZE_MB = env.int("MAX_UPLOAD_SIZE_MB", default=20)
 # versioning machinery buys nothing on top of that and is deliberately unused.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        # Replaced by accounts.authentication.CookieJWTAuthentication in Phase 3.
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "archethosbackend.apps.accounts.authentication.CookieJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         # Deny by default; public endpoints opt out explicitly with AllowAny.

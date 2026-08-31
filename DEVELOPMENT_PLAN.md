@@ -120,6 +120,40 @@ def live(self):   # PublishableQuerySet
 (FAQ), `is_active` (sections — a section not attached to a page simply does not render).
 **Retained:** `Project.is_featured`, which is curation, not publishing.
 
+### 2.7a Django's built-in User (no custom user model)
+
+CMS accounts exist only so staff can edit website content — there is no public
+registration, no customer accounts, no profile data beyond a name. Django's
+`auth.User` already carries everything `/auth/me/` needs, so no custom user model
+is introduced.
+
+Two consequences handled explicitly:
+
+* `auth.User` keys on `username`, but login is by email. An `EmailBackend`
+  resolves email -> user, and `username` is auto-filled from the email on creation.
+* `auth.User.email` is **not unique**, which would make email login ambiguous. A
+  case-insensitive partial unique index is added in
+  `accounts/migrations/0001_user_email_unique.py`:
+
+  ```sql
+  CREATE UNIQUE INDEX auth_user_email_ci_unique
+  ON auth_user (LOWER(email)) WHERE email <> '';
+  ```
+
+  Enforced in the database, so it holds for the API, Django Admin, the shell and
+  `createsuperuser` alike. Blank emails are excluded so they do not collide.
+
+Trade-off accepted: migrating to a custom user model later is painful. Given the
+narrow scope (staff editors only), that is unlikely to be needed.
+
+### 2.7b Logout cannot revoke an already-issued access token
+
+Logout blacklists the refresh token and deletes both cookies. The access token is
+stateless and stays valid until it expires. Revoking it would require a database
+lookup on every request, which defeats the point of stateless JWT. The mitigation
+is the short 15-minute lifetime plus cookie deletion — the browser no longer holds
+the token to send.
+
 ### 2.7 No refresh-token grace window
 
 Expired / invalid / blacklisted / missing refresh token → `401`, both cookies cleared. The
@@ -189,9 +223,16 @@ into `models/hero.py`, `models/collections.py`, `models/cta.py`, re-exported fro
 
 ### 5.1 accounts
 
-**`User`** — `AbstractBaseUser` + `PermissionsMixin`. `email` (unique, `USERNAME_FIELD`),
-`first_name`, `last_name`, `is_active`, `is_staff`, `is_superuser`, `date_joined`, `last_login`.
-Custom `UserManager`. **Must land in the first migration.**
+Uses Django's built-in **`auth.User`** unchanged (see §2.7a) — no model of its own.
+The app contributes behaviour, not tables:
+
+| Module | Purpose |
+|---|---|
+| `backends.EmailBackend` | resolves email -> user for login; constant-time on unknown emails |
+| `authentication.CookieJWTAuthentication` | reads the access token from the cookie, enforces CSRF on unsafe methods, accepts a Bearer fallback |
+| `cookies.py` | `set_auth_cookies` / `clear_auth_cookies`, env-aware |
+| `schema.py` | registers the `cookieAuth` OpenAPI security scheme |
+| `migrations/0001` | the case-insensitive unique email index |
 
 ### 5.2 media_library
 
@@ -749,9 +790,9 @@ dependencies.
 
 | Phase | Goal | Depends on |
 |---|---|---|
-| **1** | Architecture (this document) | — |
-| **2** | Foundation: restructure to `apps/`, split settings, `.env`, PostgreSQL + psycopg, DRF / spectacular / CORS config, `core` abstracts, envelope + pagination + exception infrastructure, health check | — |
-| **3** | Authentication: custom `User` **before the first migrate**, `CookieJWTAuthentication` + CSRF enforcement, login / refresh / logout / me, rotation + blacklist | 2 |
+| **1** | DONE - Architecture (this document) | — |
+| **2** | DONE - Foundation: restructure to `apps/`, split settings, `.env`, PostgreSQL + psycopg, DRF / spectacular / CORS config, `core` abstracts, envelope + pagination + exception infrastructure, health check | — |
+| **3** | DONE - Authentication: built-in `auth.User` + email backend + unique email index, `CookieJWTAuthentication` + CSRF enforcement, login / refresh / logout / me / password-change / csrf, rotation + blacklist | 2 |
 | **4** | Users, groups, permissions: management APIs, `StrictDjangoModelPermissions`, escalation guards, bootstrap groups migration | 3 |
 | **5** | Audit: `AuditLog`, `AuditLogMixin`, denylist, read-only filtered API. **Deliberately before content** so every later model is audited from birth rather than retrofitted | 3 |
 | **6** | Media Library: upload pipeline, validation, YouTube parsing, `MediaReferenceField`, usage endpoint, list / search / filter | 2, 5 |
@@ -798,6 +839,45 @@ A healthcheck is defined so Phase 2 can wait for readiness before the first `mig
 
 ---
 
+## 16c. Frontend routes (source of truth for pages)
+
+The Next.js UI lives at `archethos-nextjs/archethos`. Its actual routes differ from
+the Phase 1 assumptions and take precedence:
+
+```
+(website)/                     -> HomePage
+(website)/about                -> AboutPage
+(website)/contact              -> ContactPage
+(website)/gallery              -> GalleryPage        (a page, not just a section)
+(website)/journal              -> BlogListingPage    ("journal", not "blog")
+(website)/journal/[slug]       -> BlogPost detail
+(website)/projects             -> ProjectsListingPage
+(website)/projects/[slug]      -> Project detail
+(website)/services             -> ServicesListingPage
+(website)/services/[slug]      -> Service detail
+(website)/locations            -> LocationsPage      (not yet modelled)
+(website)/legal/privacy        -> LegalPage
+(website)/legal/terms          -> LegalPage
+(admin)/admin, /admin/login    -> the CMS frontend, same Next.js app
+```
+
+Deltas to resolve **before Phase 7 modelling**:
+
+* No `/vastu` route exists — `VastuPage` is probably not needed; Vastu is likely
+  just a `Service`.
+* `/locations` is unmodelled. Needs a decision: a `Location` master model, or a
+  page with static sections.
+* `/legal/[slug]` needs a simple `LegalPage` model (title + rich body + SEO); two
+  instances, so a slug-keyed model rather than two singletons.
+* `/gallery` is a full page, so `GallerySection` must be reusable at page level too.
+* Public blog routes are `/journal/...`; the model can stay `BlogPost` but the
+  public route naming should match the frontend.
+
+**Phase 7 must begin with a component-level survey of that repo** to derive the
+real field list for each section, rather than guessing.
+
+---
+
 ## 17. Open items
 
 | Item | Status |
@@ -805,3 +885,5 @@ A healthcheck is defined so Phase 2 can wait for readiness before the first `mig
 | PostgreSQL connection credentials | **resolved** — Dockerised Postgres 17, credentials from `.env` (see §16b) |
 | Django 6.1 × simplejwt 5.5.1 × `token_blacklist` compatibility | **resolved** — verified working in Phase 2 |
 | Production deployment topology (same registrable domain vs. cross-site) | default `SameSite=Lax`; revisit before production |
+| `/locations` and `/legal/*` page models | **decide before Phase 7** — see §16c |
+| Whether `VastuPage` is needed at all | likely not; no such route in the UI (§16c) |

@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1–2 complete · Phase 3 next
+**Progress:** Phases 1-3 complete · Phase 4 next
 
 ---
 
@@ -95,24 +95,45 @@ _No open blockers._
 
 ---
 
-## Phase 3 — Authentication
+## Phase 3 — Authentication `[x] COMPLETE`
 
-- [ ] Custom `User` model (email as `USERNAME_FIELD`) + `UserManager` **— before first migrate**
-- [ ] `AUTH_USER_MODEL` set in settings
-- [ ] **First `makemigrations` + `migrate`**
-- [ ] `createsuperuser` verified
-- [ ] `SIMPLE_JWT` config (15 min / 7 days, rotation, blacklist) — all env-driven
-- [ ] Add `rest_framework_simplejwt.token_blacklist` to `INSTALLED_APPS`
-- [ ] `CookieJWTAuthentication` — cookie read, Bearer fallback, `token_type` assertion, CSRF
-      enforcement on unsafe methods
-- [ ] Cookie helper (set / clear, env-aware Secure / SameSite / Domain / Path)
-- [ ] `POST /api/v1/auth/login/`
-- [ ] `POST /api/v1/auth/refresh/` (rotation + blacklist, 401 + clear cookies on any failure)
-- [ ] `POST /api/v1/auth/logout/`
-- [ ] `GET /api/v1/auth/me/` — effective permissions via `get_all_permissions()`
-- [ ] `POST /api/v1/auth/password/change/`
-- [ ] Tests: login, refresh rotation, blacklisted-token rejection, refresh-token-cannot-authenticate,
-      CSRF enforcement, logout clears cookies
+**Decision change:** Django's built-in `auth.User` is used instead of a custom user
+model. CMS accounts exist only for staff editing website content, so the built-in
+model already covers everything `/me` needs. See DEVELOPMENT_PLAN.md §2.7a.
+
+- [x] ~~Custom User model~~ -> use built-in `auth.User`
+- [x] `EmailBackend` so login is by email (constant-time on unknown emails)
+- [x] Case-insensitive unique index on `auth_user.email` (migration 0001)
+- [x] `AUTHENTICATION_BACKENDS` wired
+- [x] **First `makemigrations` + `migrate`** against Docker Postgres
+- [x] `createsuperuser` verified (`admin@archethos.test`)
+- [x] `SIMPLE_JWT` config (15 min / 7 days, rotation, blacklist) - env-driven
+- [x] `rest_framework_simplejwt.token_blacklist` in `INSTALLED_APPS`
+- [x] `CookieJWTAuthentication` - cookie read, Bearer fallback, access-only token
+      type, CSRF enforcement on unsafe methods
+- [x] Cookie helpers (env-aware Secure / SameSite / Domain / Path)
+- [x] `POST /api/v1/auth/login/`
+- [x] `POST /api/v1/auth/refresh/` (rotation + blacklist, 401 + clear on failure)
+- [x] `POST /api/v1/auth/logout/`
+- [x] `GET /api/v1/auth/me/` - effective permissions via `get_all_permissions()`
+- [x] `POST /api/v1/auth/password/change/`
+- [x] `GET /api/v1/auth/csrf/` - seeds the readable csrftoken cookie
+- [x] `cookieAuth` OpenAPI security scheme registered
+- [x] Tests: 23/23 passing
+
+**Phase 3 notes**
+
+- Refresh cookie is scoped to `Path=/api/v1/auth/`, so it is not sent on ordinary
+  API calls.
+- Logout blacklists the refresh token but **cannot revoke an already-issued access
+  token** - stateless JWT. Mitigated by the 15-minute lifetime plus cookie
+  deletion. See DEVELOPMENT_PLAN.md §2.7b.
+- Login and logout are intentionally `AllowAny` with no authentication classes: an
+  expired access token must never block logging out.
+- No registration endpoint by design - accounts are created by an admin in Phase 4.
+- Login itself is not CSRF-protected (DRF views are csrf_exempt unless an
+  authenticator enforces it). `GET /auth/csrf/` exists so the frontend can seed the
+  token on boot if login-CSRF hardening is wanted later.
 
 ---
 
@@ -167,6 +188,16 @@ _No open blockers._
 ---
 
 ## Phase 7 — Master content
+
+### Prerequisite: survey the Next.js UI
+
+- [ ] Component-level survey of `archethos-nextjs/archethos` to derive real fields
+      per section/page (DEVELOPMENT_PLAN.md §16c)
+- [ ] Decide: `/locations` -> `Location` master model or static page sections?
+- [ ] Decide: `/legal/privacy` + `/legal/terms` -> slug-keyed `LegalPage` model
+- [ ] Confirm `VastuPage` can be dropped (no such route exists)
+- [ ] Confirm `/gallery` is a full page, so `GallerySection` is page-level reusable
+- [ ] Align public blog routes with the frontend's `/journal/...` naming
 
 ### Models
 

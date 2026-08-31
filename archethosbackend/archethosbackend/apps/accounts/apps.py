@@ -8,3 +8,7 @@ class AccountsConfig(AppConfig):
     # inheriting the dotted package path.
     label = "accounts"
     verbose_name = "Accounts"
+
+    def ready(self):
+        # Registers the OpenAPI security scheme for CookieJWTAuthentication.
+        from . import schema  # noqa: F401
