@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-4 complete · Phase 5 (Media Library) next · 62 tests passing
+**Progress:** Phases 1-5 complete · Phase 6 (master content) next · 97 tests passing
 
 **Standing constraints — apply to every phase**
 
@@ -117,27 +117,43 @@ _None._
 
 ---
 
-## Phase 5 — Media Library
+## Phase 5 — Media Library `[x] COMPLETE`
 
-- [ ] `MediaAsset` model + `CheckConstraint`s + `checksum` index
-- [ ] UUID-prefixed `upload_to`; user filename never determines uniqueness
-- [ ] `relative_path` property
-- [ ] Upload validation: extension allowlist, MIME sniff, max size, dimension caps,
+- [x] `MediaAsset` model + `CheckConstraint`s + `checksum` index
+- [x] UUID-prefixed `upload_to`; user filename never determines uniqueness
+- [x] `relative_path` property
+- [x] Upload validation: extension allowlist, MIME sniff, max size, dimension caps,
       Pillow verify (a `.jpg` that is not an image must be rejected)
-- [ ] Image metadata extraction (width / height / size / mime)
-- [ ] YouTube URL validation + video-id extraction + thumbnail URL
-- [ ] **`MediaReferenceField`** - read -> path, write -> id-or-path, existence validated.
+- [x] Image metadata extraction (width / height / size / mime)
+- [x] YouTube URL validation + video-id extraction + thumbnail URL
+- [x] **`MediaReferenceField`** - read -> path, write -> id-or-path, existence validated.
       The single place plan §2.1 is enforced; everything later depends on it.
-- [ ] `POST /admin/media/upload/`
-- [ ] `POST /admin/media/youtube/`
-- [ ] `GET/PATCH/DELETE /admin/media/` + `{id}/` (409 on PROTECT violation)
-- [ ] `GET /admin/media/{id}/usage/` - where an asset is referenced
-- [ ] Pagination, `?search=`, `?media_type=`, `?source_type=`, `?ordering=`
-- [ ] Tests: rejects non-image `.jpg`, rejects oversize, dedupes by checksum,
+- [x] `POST /admin/media/upload/`
+- [x] `POST /admin/media/youtube/`
+- [x] `GET/PATCH/DELETE /admin/media/` + `{id}/` (409 on PROTECT violation)
+- [x] `GET /admin/media/{id}/usage/` - where an asset is referenced
+- [x] Pagination, `?search=`, `?media_type=`, `?source_type=`, `?ordering=`
+- [x] Tests: rejects non-image `.jpg`, rejects oversize, dedupes by checksum,
       YouTube parsing, delete-in-use returns 409
-- [ ] `manage.py sync_cms_groups`
+- [x] `manage.py sync_cms_groups`
 
 ---
+
+**Phase 5 notes**
+
+- `MediaReferenceField` is live and tested both directions: reads as a relative
+  path, writes from an id, a `/media/...` path, a bare `uploads/...` path, or a
+  YouTube URL. A GET'd payload PATCHes back unchanged, which the frontend relies on.
+- Upload validation checks **bytes, not names**. A PHP payload named `evil.jpg` is
+  rejected by Pillow's `verify()`, confirmed over real HTTP.
+- YouTube host matching is an allowlist, not a substring check - `youtube.evil.example`
+  is rejected. The same video is refused twice even via a different URL shape.
+- `file` is immutable after upload; only `title` and `alt_text` are editable.
+  Swapping bytes under a stable id would silently change every page using it.
+- **Fixed:** upload tests were writing into the project's `media/` directory.
+  `settings/test.py` now points `MEDIA_ROOT` at a temp dir.
+- Deletion relies on `PROTECT` plus the envelope handler's 409; `media/{id}/usage/`
+  lets the UI show what would break before offering the delete.
 
 ## Phase 6 — Master content
 
