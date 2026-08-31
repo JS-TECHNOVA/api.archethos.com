@@ -120,6 +120,26 @@ def live(self):   # PublishableQuerySet
 (FAQ), `is_active` (sections — a section not attached to a page simply does not render).
 **Retained:** `Project.is_featured`, which is curation, not publishing.
 
+### 2.8 Class-based views only — never ViewSets
+
+Every endpoint is a DRF generic class-based view (`ListCreateAPIView`,
+`RetrieveUpdateAPIView`, `APIView`) wired with explicit `path()` entries.
+`ViewSet`, `ModelViewSet`, `@action` and DRF routers are not used anywhere.
+
+Consequences, all of them deliberate:
+
+* Every URL is written out in a `urls.py`, so the route list is readable without
+  mentally expanding a router.
+* One class per operation-group rather than one class per resource. A resource is
+  typically two classes (list+create, detail) plus one small class per custom
+  operation.
+* Custom operations that would have been `@action` become their own view class -
+  e.g. `BlogPublishAPIView`, `UserDeactivateAPIView`, `SectionItemReorderAPIView`.
+* `get_serializer_class()` dispatches on `request.method` instead of on
+  `self.action`.
+* Generic views still provide `perform_create` / `perform_update` /
+  `perform_destroy`, so the audit hooks in §2.4 attach unchanged.
+
 ### 2.7a Django's built-in User (no custom user model)
 
 CMS accounts exist only so staff can edit website content — there is no public
@@ -260,8 +280,24 @@ display only), `file_size`, `mime_type`, `width`, `height`, `duration`, `title`,
 
 ### 5.4 sections
 
-All inherit `TimeStampedModel` + `SectionBase` (which provides `internal_name` — the label
-admins see in the section picker).
+All inherit `TimeStampedModel` + `SectionBase`, which provides **`internal_label`** — a
+required, admin-facing name for the section instance.
+
+This field exists because section models are master tables holding many rows. Opening the
+`HomeHeroSection` table shows several rows with no way to tell them apart from their content
+alone. `internal_label` says which page or purpose each row was created for:
+
+```
+HeroSection
+  id  internal_label              title
+  1   "Home - main hero"          "Architecture Beyond Boundaries"
+  2   "About - studio hero"       "Who We Are"
+  3   "Home - seasonal campaign"  "Monsoon Collection"
+```
+
+It is never rendered on the public site and never appears in public serializers. It is purely
+for the CMS section picker and admin tables, where "which hero is this?" is otherwise
+guesswork.
 
 | Section | Fields | Item model |
 |---|---|---|
@@ -583,7 +619,7 @@ gallery-sections/         faq-sections/              cta-sections/
 contact-info-sections/
     └─ each: GET list · POST · GET/PATCH/DELETE {id}
 
-# ordered relationships — ONE reusable implementation, mounted five times
+# ordered relationships — ONE reusable set of base classes, subclassed per section
 {section-type}/{id}/items/               GET list · POST add
 {section-type}/{id}/items/{item_id}/     PATCH · DELETE
 {section-type}/{id}/items/reorder/       PATCH  (atomic)
@@ -675,17 +711,18 @@ Selectors    for_public(), for_admin_list(), .live()   ← ALL prefetch logic li
 Serializers  shape + validation
 Services     only where genuinely multi-step: media upload pipeline, publish transitions,
              atomic reorder, user creation with permissions, audit writes
-ViewSets     thin — ~5-15 lines, get_serializer_class() dispatch
+Views        thin class-based views — ~5-15 lines, get_serializer_class() dispatch
 Permissions  declarative classes
 ```
 
-Shared infrastructure in `apps/api/`:
+Shared infrastructure in `apps/api/generics.py`:
 
-- `AdminModelViewSet` — envelope + pagination + filter/search/order + audit + serializer
-  dispatch. Every admin resource subclasses it.
-- `SectionItemViewSet` — one generic class, configured per section type, providing list / add /
-  update / remove / **reorder** for all five ordered relationships. Written once, mounted five
-  times.
+- `AdminListCreateAPIView` — list + create: envelope, pagination, filter/search/order, audit,
+  serializer dispatch by method.
+- `AdminRetrieveUpdateDestroyAPIView` — detail, update, delete.
+- `SectionItemListCreateAPIView` / `SectionItemDetailAPIView` / `SectionItemReorderAPIView` —
+  configured per section type, covering list / add / update / remove / **reorder** for all
+  ordered relationships. Written once, subclassed per section.
 - `MediaReferenceField` — the single place decision 2.1 is enforced.
 
 Reorder validates: all ids belong to this section · no duplicate ids · no unknown ids. Then

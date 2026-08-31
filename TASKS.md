@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-3 complete · Phase 4 next
+**Progress:** Phases 1-4 complete · Phase 5 (audit) next
 
 ---
 
@@ -137,28 +137,44 @@ model already covers everything `/me` needs. See DEVELOPMENT_PLAN.md §2.7a.
 
 ---
 
-## Phase 4 — Users, groups, permissions
+## Phase 4 — Users, groups, permissions `[x] COMPLETE`
 
-- [ ] `StrictDjangoModelPermissions` (requires `view_*` on GET)
-- [ ] User management API — list / create / retrieve / update / deactivate / set-password
-- [ ] `UserListSerializer` / `UserDetailSerializer` / `UserWriteSerializer`
-- [ ] Assign groups + direct permissions
-- [ ] Group management API + permission assignment
-- [ ] `GET /api/v1/admin/permissions/` grouped by app/model
-- [ ] Privilege-escalation guards:
-  - [ ] may only grant permissions the actor holds
-  - [ ] non-superuser cannot set `is_superuser`
-  - [ ] cannot deactivate self
-  - [ ] cannot deactivate the last active superuser
-- [ ] Bootstrap groups data migration (Administrators / Content Managers / Editors / Media Managers)
-- [ ] Tests: permission matrix per role, escalation guards
+**Constraint:** class-based views only. No ViewSets, no routers, no `@action`.
+See DEVELOPMENT_PLAN.md §2.8.
+
+- [x] `StrictDjangoModelPermissions` (requires `view_*` on GET)
+- [x] User management API — list / create / retrieve / update / deactivate / set-password
+- [x] `UserListSerializer` / `UserDetailSerializer` / `UserWriteSerializer`
+- [x] Assign groups + direct permissions
+- [x] Group management API + permission assignment
+- [x] `GET /api/v1/admin/permissions/` grouped by app/model
+- [x] Privilege-escalation guards:
+  - [x] may only grant permissions the actor holds
+  - [x] non-superuser cannot set `is_superuser`
+  - [x] cannot deactivate self
+  - [x] cannot deactivate the last active superuser
+- [x] Bootstrap groups data migration (Administrators / Content Managers / Editors / Media Managers)
+- [x] Tests: permission matrix per role, escalation guards
 
 ---
+
+**Phase 4 notes**
+
+- Class-based views throughout; no ViewSets, no routers, no `@action`. What would
+  have been router actions are their own classes: `UserDeactivateAPIView`,
+  `UserActivateAPIView`, `UserSetPasswordAPIView`.
+- Users are **never deleted**, only deactivated - DELETE on `/users/{id}/` returns
+  405. An account may own blog posts and audit history, and deactivation reverses.
+- `sync_cms_groups` currently grants 12 permissions to Administrators and 0 to the
+  content roles, because the content apps have no models yet. **Re-run it after
+  Phases 6-9** to pick up the new models.
+- 39/39 tests pass, most of them on the escalation guards.
 
 ## Phase 5 — Audit
 
 - [ ] `AuditLog` model + indexes
-- [ ] `AuditLogMixin` (`perform_create` / `perform_update` with before-snapshot / `perform_destroy`)
+- [ ] `AuditLogMixin` for generic CBVs (`perform_create` / `perform_update` with
+      before-snapshot / `perform_destroy`)
 - [ ] Field denylist (`password`, `token`, `secret`, `key`, `session`)
 - [ ] Diff builder → `{"field": {"old": ..., "new": ...}}`
 - [ ] LOGIN / LOGOUT logging in the auth views
@@ -219,13 +235,15 @@ model already covers everything `/me` needs. See DEVELOPMENT_PLAN.md §2.7a.
 
 ### APIs
 
-- [ ] `AdminModelViewSet` base class (envelope + pagination + filters + audit + serializer dispatch)
+- [ ] `AdminListCreateAPIView` + `AdminRetrieveUpdateDestroyAPIView` base classes
+      (envelope + pagination + filters + audit + serializer dispatch)
 - [ ] Admin CRUD: projects, services, blogs, blog-categories, faqs
 - [ ] `projects/{id}/gallery/` — list / add / update / remove / reorder
 - [ ] `blogs/{id}/publish/` and `unpublish/`
 - [ ] Public read-only: projects, services, blogs, faqs (list + `{slug}`)
 - [ ] Public filters: `?featured=`, `?service=`, `?year=`, `?status=`, `?category=`
 - [ ] Tests: unpublished/draft content never reachable publicly; slug uniqueness; permission matrix
+- [ ] Run `manage.py sync_cms_groups` so the CMS roles pick up the new models
 
 ---
 
@@ -233,7 +251,8 @@ model already covers everything `/me` needs. See DEVELOPMENT_PLAN.md §2.7a.
 
 ### Models
 
-- [ ] `SectionBase` (`internal_name`)
+- [ ] `SectionBase` with **`internal_label`** (required admin-facing name, e.g.
+      "Home - main hero" vs "About - studio hero"; never exposed publicly)
 - [ ] `HomeHeroSection` · `AboutHeroSection` · `SimpleHeroSection`
 - [ ] `StudioIntroSection` + `StudioStatItem`
 - [ ] `FeaturedProjectsSection` + `FeaturedProjectItem`
@@ -246,7 +265,7 @@ model already covers everything `/me` needs. See DEVELOPMENT_PLAN.md §2.7a.
 
 ### APIs
 
-- [ ] `SectionItemViewSet` generic base — list / add / update / remove / reorder
+- [ ] `SectionItem*APIView` base classes — list / add / update / remove / reorder
 - [ ] Atomic reorder: validate ownership, no duplicate ids, no unknown ids, `bulk_update`
 - [ ] CRUD + `List`/`Detail`/`Write` serializers for all 10 section types
 - [ ] Detail responses include items; list responses are lightweight + `items_count`

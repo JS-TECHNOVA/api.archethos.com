@@ -28,7 +28,9 @@ class AuthFlowTests(TestCase):
             first_name="Ed",
             last_name="Itor",
         )
-        group = Group.objects.create(name="Content Managers")
+        # A name of its own: the bootstrap migration already creates the four
+        # default CMS roles, so reusing one of those collides.
+        group = Group.objects.create(name="Test Reviewers")
         group.permissions.add(
             *Permission.objects.filter(
                 codename__in=["add_group", "change_group", "view_group"]
@@ -96,7 +98,7 @@ class AuthFlowTests(TestCase):
         data = client.get(reverse("v1:auth:me")).json()["data"]
 
         self.assertEqual(data["email"], self.user.email)
-        self.assertEqual([g["name"] for g in data["groups"]], ["Content Managers"])
+        self.assertEqual([g["name"] for g in data["groups"]], ["Test Reviewers"])
         # Group-derived permissions must be included, not just direct ones.
         self.assertIn("auth.change_group", data["permissions"])
         self.assertNotIn("auth.delete_group", data["permissions"])
