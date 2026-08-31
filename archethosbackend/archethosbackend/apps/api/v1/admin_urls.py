@@ -27,6 +27,16 @@ from archethosbackend.apps.content.admin_views import (
     ServiceListCreateAPIView,
 )
 
+from archethosbackend.apps.sections.views import (
+    SectionBrowseAPIView,
+    SectionDetailAPIView,
+    SectionItemDetailAPIView,
+    SectionItemListCreateAPIView,
+    SectionItemReorderAPIView,
+    SectionListCreateAPIView,
+    SectionTypeCatalogueAPIView,
+)
+
 from archethosbackend.apps.media_library.views import (
     MediaDetailAPIView,
     MediaDuplicateCheckAPIView,
@@ -129,4 +139,38 @@ urlpatterns = [
     path("faqs/<int:pk>/", FAQDetailAPIView.as_view(), name="faq-detail"),
     path("counters/", CounterListCreateAPIView.as_view(), name="counter-list"),
     path("counters/<int:pk>/", CounterDetailAPIView.as_view(), name="counter-detail"),
+    # ── Sections ──────────────────────────────────────────────────────────────
+    # One set of routes serves every section type. <segment> resolves through
+    # SECTION_REGISTRY, so a new section type needs no new URL entry.
+    path("sections/", SectionBrowseAPIView.as_view(), name="section-browse"),
+    path(
+        "sections/types/",
+        SectionTypeCatalogueAPIView.as_view(),
+        name="section-type-list",
+    ),
+    path(
+        "sections/<slug:segment>/",
+        SectionListCreateAPIView.as_view(),
+        name="section-list",
+    ),
+    path(
+        "sections/<slug:segment>/<int:pk>/",
+        SectionDetailAPIView.as_view(),
+        name="section-detail",
+    ),
+    path(
+        "sections/<slug:segment>/<int:pk>/items/",
+        SectionItemListCreateAPIView.as_view(),
+        name="section-item-list",
+    ),
+    path(
+        "sections/<slug:segment>/<int:pk>/items/reorder/",
+        SectionItemReorderAPIView.as_view(),
+        name="section-item-reorder",
+    ),
+    path(
+        "sections/<slug:segment>/<int:pk>/items/<int:item_id>/",
+        SectionItemDetailAPIView.as_view(),
+        name="section-item-detail",
+    ),
 ]

@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-6 complete · Phase 7 (sections) next · 136 tests passing
+**Progress:** Phases 1-8 complete · Phase 9 (pages) next · 176 tests passing
 
 **Standing constraints — apply to every phase**
 
@@ -197,49 +197,68 @@ _None._
   `source="*"`; as `SerializerMethodField`s they needed a `get_<name>` method on
   every serializer, which was the duplication they existed to remove.
 
-## Phase 7 — Sections
+## Phase 7 — Sections `[x] COMPLETE`
 
-- [ ] **Prerequisite:** component-level survey of the Next.js UI to derive real fields per
-      section type (plan §20). Do not guess.
-- [ ] `Section` concrete MTI base: `section_type` (set in `save()`, never client-supplied),
+- [x] Read-only survey of the Next.js UI to derive real fields
+- [x] `Section` concrete MTI base: `section_type` (set in `save()`, `editable=False`),
       `internal_label`
-- [ ] `SectionType` choices
-- [ ] `HeroSection`
-- [ ] `IntroSection`
-- [ ] `CounterSection`
-- [ ] `FeaturedProjectsSection`
-- [ ] `ServicesSection`
-- [ ] `GallerySection` (layout_variant GRID / MASONRY / SLIDER)
-- [ ] `FAQSection`
-- [ ] `CTASection`
-- [ ] `ContactInfoSection`
-- [ ] `RichTextSection` (carries `/legal/privacy` and `/legal/terms`)
-- [ ] `SECTION_REGISTRY` with `SectionSpec` (model, 4 serializers, url_segment,
-      public_queryset)
-- [ ] Admin section URLs **generated from the registry**, not hand-written per type
-- [ ] `GET /admin/sections/` - all sections, `?section_type=` filter, paginated
-- [ ] Per-type CRUD: `sections/{type}/` and `sections/{type}/{id}/`
-- [ ] Tests: `section_type` cannot be set by the client and matches the concrete class
-- [ ] `manage.py sync_cms_groups`
+- [x] `SectionType` choices - one value per frontend component
+- [x] `HeroSection` **+ `HeroSlide`** (the live hero is a 3-frame slider, not a
+      single headline - the UI survey caught this)
+- [x] `IntroSection`
+- [x] `CounterSection`
+- [x] `FeaturedProjectsSection`
+- [x] `ServicesSection`
+- [x] `GallerySection` (GRID / MASONRY / SLIDER)
+- [x] `FAQSection`
+- [x] `CTASection`
+- [x] `ContactInfoSection`
+- [x] `RichTextSection` (carries `/legal/privacy` and `/legal/terms`)
+- [x] `SECTION_REGISTRY` with `SectionSpec` + `ItemSpec`
+- [x] Admin section URLs **generated from the registry** - one route set serves
+      all 10 types via `<segment>`
+- [x] `GET /admin/sections/` - type-agnostic browser, one query
+- [x] `GET /admin/sections/types/` - the registry as data, so the admin menu
+      cannot drift from the backend
+- [x] Per-type CRUD
+- [x] Tests: `section_type` cannot be forged; permissions are per concrete type
 
 ---
 
-## Phase 8 — Section items + reorder
+## Phase 8 — Section items + reorder `[x] COMPLETE`
 
-- [ ] `FAQSectionItem`
-- [ ] `CounterSectionItem`
-- [ ] `FeaturedProjectItem` (+ `display_variant`)
-- [ ] `ServiceSectionItem` (+ `label_override`)
-- [ ] `GallerySectionItem` (+ `caption`)
-- [ ] `UniqueConstraint(section, content)` on each; **no** constraint on `order`
-- [ ] `SectionItemListCreateAPIView` / `SectionItemDetailAPIView` base classes
-- [ ] `ReorderAPIView` base - validates ownership, no duplicate ids, no unknown ids,
-      then `transaction.atomic()` + `bulk_update(["order"])`
-- [ ] Item routes generated from the registry for every type that has items
-- [ ] Parent-derived permissions (`sections.change_faqsection`, not a per-item permission)
-- [ ] Detail responses include items; list responses stay light with `items_count`
-- [ ] Tests: reorder atomicity + validation; duplicate content rejected; deleting a section
-      leaves master content intact (PROTECT)
+- [x] `FAQSectionItem` · `CounterSectionItem` · `FeaturedProjectItem`
+      (+ `display_variant`) · `ServiceSectionItem` (+ `label_override`) ·
+      `GallerySectionItem` (+ `caption`) · `HeroSlide`
+- [x] `UniqueConstraint(section, content)` on each; **no** constraint on `order`
+- [x] Generic item list / add / update / remove, registry-driven
+- [x] `SectionItemReorderAPIView` - ownership checked, duplicate and unknown ids
+      rejected, then `bulk_update` in one transaction
+- [x] Item routes generated for every type that declares items
+- [x] Parent-derived permissions (`sections.change_faqsection`)
+- [x] Detail includes items; list stays light with `items_count`
+- [x] Tests: reorder atomicity, duplicate content rejected, PROTECT on master content
+
+**Phases 7-8 notes**
+
+- **The hero is a slider.** The UI survey found three frames each with their own
+  `eyebrow`, `headingLines`, `lead` and media. A single-headline hero model could
+  not have expressed it. `heading` is stored as text with one line per row and
+  split into `heading_lines` by the serializer - the breaks are a typographic
+  decision the editor makes in a textarea.
+- One route set serves all 10 section types. Adding a type = model + serializers +
+  registry entry; **no new URL, view or test file**.
+- Several tests iterate `SECTION_REGISTRY`, so a newly registered type is covered
+  the moment it is added. One asserts every `SectionType` value is registered -
+  an unregistered type would 404 on its own routes.
+- Public serializers filter draft master content out of every section, and none of
+  them expose `internal_label` (asserted for all 10).
+- **Deferred to Phase 9:** section `usage` endpoint and `used_by_count`. Both need
+  `PageSection`, which does not exist yet - written a phase early and removed
+  rather than faked.
+- More section types exist in the UI than are modelled (design-build, vastu-preview,
+  philosophy, mission-vision, founder-message, studio-story, service-process,
+  location). Most are `intro`- or `rich_text`-shaped; add them as needed.
 
 ---
 
