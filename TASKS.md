@@ -4,7 +4,7 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-5 complete · Phase 6 (master content) next · 97 tests passing
+**Progress:** Phases 1-6 complete · Phase 7 (sections) next · 136 tests passing
 
 **Standing constraints — apply to every phase**
 
@@ -14,6 +14,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - One publish flag: `status` + `published_at`. No `is_active` / `is_published`. (plan §2.6)
 - Public serializers are independent classes, never subclasses of admin ones. (plan §12)
 - Never modify the Next.js UI repo. Read it for reference only.
+- All master content lives in the single `content` app (Project, Service, BlogPost,
+  FAQ, Counter), split into modules under `content/models/`. `Company` lives in `pages`.
 
 ---
 
@@ -155,25 +157,45 @@ _None._
 - Deletion relies on `PROTECT` plus the envelope handler's 409; `media/{id}/usage/`
   lets the UI show what would break before offering the delete.
 
-## Phase 6 — Master content
+## Phase 6 — Master content `[x] COMPLETE`
 
-- [ ] `Service`
-- [ ] `Project` + `ProjectGalleryItem`
-- [ ] `BlogCategory` + `BlogPost`
-- [ ] `FAQ`
-- [ ] `Counter` (prefix, content, postfix, subtitle, description) - plan §5.5
-- [ ] Indexes: slugs, `(status, published_at)`
-- [ ] `published_at` auto-set on first transition to PUBLISHED
-- [ ] Four serializers each: List / Detail / Write / Public
-- [ ] Admin CRUD for all six
-- [ ] `projects/{id}/gallery/` list / add / update / remove / reorder
-- [ ] `blogs/{id}/publish/` and `unpublish/`
-- [ ] Public read-only: projects, services, blogs, faqs (list + `{slug}`)
-- [ ] Public filters: `?featured=` `?service=` `?year=` `?status=` `?category=`
-- [ ] Tests: draft content unreachable publicly; slug uniqueness; permission matrix
-- [ ] `manage.py sync_cms_groups`
+- [x] `Service`
+- [x] `Project` + `ProjectGalleryItem`
+- [x] `BlogCategory` + `BlogPost`
+- [x] `FAQ`
+- [x] `Counter` (prefix, content, postfix, subtitle, description) - plan §5.5
+- [x] Indexes: slugs, `(status, published_at)`
+- [x] `published_at` auto-set on first transition to PUBLISHED
+- [x] Four serializers each: List / Detail / Write / Public
+- [x] Admin CRUD for all six
+- [x] `projects/{id}/gallery/` list / add / update / remove / reorder
+- [x] `blogs/{id}/publish/` and `unpublish/`
+- [x] Public read-only: projects, services, blogs, faqs (list + `{slug}`)
+- [x] Public filters: `?featured=` `?service=` `?year=` `?status=` `?category=`
+- [x] Tests: draft content unreachable publicly; slug uniqueness; permission matrix
+- [x] `manage.py sync_cms_groups`
 
 ---
+
+**Phase 6 notes**
+
+- **The five content apps were merged into one `content` app**, models split into
+  modules under `content/models/`. `Company` moved into `pages`. Permission
+  codenames are now `content.add_project` etc.
+- `MediaReferenceField` proven end to end: create by id, create by path, and a
+  GET'd payload PATCHes back unchanged.
+- Public exposure is enforced in `get_queryset()` via `.live()`, never in a
+  serializer. Drafts return **404, not 403** - a 403 would confirm the record
+  exists. A draft Service linked from a live Project is filtered out too.
+- Public blog detail exposes `author_name`, never `author_email`.
+- Slugs are generated once and never regenerated on title change, so published
+  URLs survive typo fixes.
+- **Fixed:** `annotate(Count(...))` silently clears `Meta.ordering`, which made
+  two paginated lists non-deterministic. Every list view now declares an explicit
+  `ordering`.
+- `MediaDetailField` / `SEOBlockField` rewritten as plain `Field` subclasses with
+  `source="*"`; as `SerializerMethodField`s they needed a `get_<name>` method on
+  every serializer, which was the duplication they existed to remove.
 
 ## Phase 7 — Sections
 

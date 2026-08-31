@@ -58,6 +58,7 @@ class UserFilterSet(django_filters.FilterSet):
 
 
 class UserListCreateAPIView(AdminListCreateAPIView):
+    ordering = ["-date_joined", "-id"]
     queryset = User.objects.all().prefetch_related("groups").order_by("-date_joined")
     list_serializer_class = UserListSerializer
     write_serializer_class = UserWriteSerializer
@@ -197,6 +198,7 @@ class UserSetPasswordAPIView(APIView):
 
 
 class GroupListCreateAPIView(AdminListCreateAPIView):
+    ordering = ["name", "id"]
     queryset = Group.objects.annotate(
         permissions_count=Count("permissions", distinct=True),
         users_count=Count("user", distinct=True),

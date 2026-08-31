@@ -51,6 +51,7 @@ class MediaListAPIView(AdminListAPIView):
     Creation goes through the upload and youtube endpoints, so this is list-only.
     """
 
+    ordering = ["-created_at", "-id"]
     queryset = MediaAsset.objects.select_related("uploaded_by")
     list_serializer_class = MediaAssetListSerializer
     filterset_class = MediaFilterSet

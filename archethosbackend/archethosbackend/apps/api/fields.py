@@ -11,9 +11,20 @@ ForeignKey to MediaAsset, the API speaks relative paths.
 Every media field on every model uses this field, so the rule cannot drift.
 """
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 
+@extend_schema_field(
+    {
+        "type": "string",
+        "nullable": True,
+        "description": (
+            "Relative media path on read, e.g. '/media/uploads/abc123-hero.webp'. "
+            "On write, accepts either that path or the numeric MediaAsset id."
+        ),
+    }
+)
 class MediaReferenceField(serializers.Field):
     """Reads as a relative path, writes from either an id or a path."""
 
@@ -87,16 +98,37 @@ def _resolve_path(path):
     return MediaAsset.objects.filter(file=relative).first()
 
 
-class MediaDetailField(serializers.SerializerMethodField):
+@extend_schema_field(
+    {
+        "type": "object",
+        "nullable": True,
+        "properties": {
+            "id": {"type": "integer"},
+            "path": {"type": "string"},
+            "alt_text": {"type": "string"},
+            "title": {"type": "string"},
+            "width": {"type": "integer", "nullable": True},
+            "height": {"type": "integer", "nullable": True},
+            "media_type": {"type": "string"},
+        },
+    }
+)
+class MediaDetailField(serializers.Field):
     """Companion read-only field exposing what a template needs beyond the path.
 
     Declared as `<name>_detail` alongside the `MediaReferenceField` so the
     frontend can render `alt` text and reserve layout space from width/height
     without a second request.
+
+    A plain Field with `source="*"` rather than a SerializerMethodField: the
+    latter would need a `get_<field_name>` method on every serializer that uses
+    it, which is exactly the duplication this class exists to remove.
     """
 
     def __init__(self, source_field, **kwargs):
         self.source_field = source_field
+        kwargs["read_only"] = True
+        kwargs["source"] = "*"
         super().__init__(**kwargs)
 
     def to_representation(self, instance):

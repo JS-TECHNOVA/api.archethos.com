@@ -7,6 +7,26 @@ Every route is written out explicitly — no routers anywhere in this project
 
 from django.urls import path
 
+from archethosbackend.apps.content.admin_views import (
+    BlogCategoryDetailAPIView,
+    BlogCategoryListCreateAPIView,
+    BlogPostDetailAPIView,
+    BlogPostListCreateAPIView,
+    BlogPostPublishAPIView,
+    BlogPostUnpublishAPIView,
+    CounterDetailAPIView,
+    CounterListCreateAPIView,
+    FAQDetailAPIView,
+    FAQListCreateAPIView,
+    ProjectDetailAPIView,
+    ProjectGalleryItemAPIView,
+    ProjectGalleryListCreateAPIView,
+    ProjectGalleryReorderAPIView,
+    ProjectListCreateAPIView,
+    ServiceDetailAPIView,
+    ServiceListCreateAPIView,
+)
+
 from archethosbackend.apps.media_library.views import (
     MediaDetailAPIView,
     MediaDuplicateCheckAPIView,
@@ -60,4 +80,53 @@ urlpatterns = [
     ),
     path("media/<int:pk>/", MediaDetailAPIView.as_view(), name="media-detail"),
     path("media/<int:pk>/usage/", MediaUsageAPIView.as_view(), name="media-usage"),
+    # Services
+    path("services/", ServiceListCreateAPIView.as_view(), name="service-list"),
+    path("services/<int:pk>/", ServiceDetailAPIView.as_view(), name="service-detail"),
+    # Projects, with their own gallery
+    path("projects/", ProjectListCreateAPIView.as_view(), name="project-list"),
+    path("projects/<int:pk>/", ProjectDetailAPIView.as_view(), name="project-detail"),
+    path(
+        "projects/<int:pk>/gallery/",
+        ProjectGalleryListCreateAPIView.as_view(),
+        name="project-gallery-list",
+    ),
+    path(
+        "projects/<int:pk>/gallery/reorder/",
+        ProjectGalleryReorderAPIView.as_view(),
+        name="project-gallery-reorder",
+    ),
+    path(
+        "projects/<int:pk>/gallery/<int:item_id>/",
+        ProjectGalleryItemAPIView.as_view(),
+        name="project-gallery-item",
+    ),
+    # Blog
+    path("blogs/", BlogPostListCreateAPIView.as_view(), name="blog-list"),
+    path("blogs/<int:pk>/", BlogPostDetailAPIView.as_view(), name="blog-detail"),
+    path(
+        "blogs/<int:pk>/publish/",
+        BlogPostPublishAPIView.as_view(),
+        name="blog-publish",
+    ),
+    path(
+        "blogs/<int:pk>/unpublish/",
+        BlogPostUnpublishAPIView.as_view(),
+        name="blog-unpublish",
+    ),
+    path(
+        "blog-categories/",
+        BlogCategoryListCreateAPIView.as_view(),
+        name="blog-category-list",
+    ),
+    path(
+        "blog-categories/<int:pk>/",
+        BlogCategoryDetailAPIView.as_view(),
+        name="blog-category-detail",
+    ),
+    # FAQs and counters
+    path("faqs/", FAQListCreateAPIView.as_view(), name="faq-list"),
+    path("faqs/<int:pk>/", FAQDetailAPIView.as_view(), name="faq-detail"),
+    path("counters/", CounterListCreateAPIView.as_view(), name="counter-list"),
+    path("counters/<int:pk>/", CounterDetailAPIView.as_view(), name="counter-detail"),
 ]

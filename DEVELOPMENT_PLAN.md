@@ -200,20 +200,17 @@ archethos-backend/
         ├── audit/           AuditLog, AuditLogMixin, read-only API
         ├── media_library/   MediaAsset, upload pipeline, YouTube parsing
         │
-        │   ── master content, one app per content type ──
-        ├── projects/        Project, ProjectGalleryItem
-        ├── services/        Service
-        ├── blogs/           BlogPost, BlogCategory
-        ├── faqs/            FAQ
-        ├── counters/        Counter
+        ├── content/         ALL master content, split into modules:
+        │                      models/project.py  Project, ProjectGalleryItem
+        │                      models/service.py  Service
+        │                      models/blog.py     BlogPost, BlogCategory
+        │                      models/faq.py      FAQ
+        │                      models/counter.py  Counter
         │
         │   ── presentation ──
         ├── sections/        Section MTI base, concrete sections, item models,
         │                    SECTION_REGISTRY
-        ├── pages/           Page, PageSection
-        │
-        │   ── site-wide ──
-        ├── company/         Company singleton
+        ├── pages/           Page, PageSection, Company
         ├── enquiries/       Enquiry
         └── api/             renderer, exception handler, pagination,
                              generic CBV base classes, permissions,
@@ -267,7 +264,7 @@ bootstrap migration and refreshed by `manage.py sync_cms_groups`.
 uniqueness. `relative_path` returns `/media/uploads/…`, or the external URL for YouTube.
 `CheckConstraint`: `file` required for UPLOAD, `external_url` required for YOUTUBE.
 
-### 5.3 Master content — owns the content itself, reusable everywhere
+### 5.3 content — master content, owns the content itself, reusable everywhere
 
 | Model | Fields |
 |---|---|
@@ -347,6 +344,8 @@ the number.
 
 ### 5.6 pages
 
+Holds `Page`, `PageSection` and the `Company` singleton.
+
 **`Page`** — SEO + TimeStamped · `name`, `slug` (unique, indexed), `is_published`.
 
 No `page_type`. Home, About, Contact, Gallery, Locations and both Legal pages are all just
@@ -397,9 +396,7 @@ home   homepage_faq      faq                 5
 home   bottom_cta        cta                 6   ← same type, different key
 ```
 
-### 5.7 company
-
-**`Company`** — singleton master.
+#### Company — singleton master
 
 ```
 name · address · logo (FK MediaAsset)
@@ -419,13 +416,13 @@ wire as a `TextField` would give, with none of the downsides.
 arbitrary JS on every page of the live site. The write serializer restricts **those two fields
 only** to superusers; everything else in `Company` needs just `company.change_company`.
 
-### 5.8 enquiries
+### 5.7 enquiries
 
 **`Enquiry`** — one table for every form on the site: `form_type` (CONTACT / CONSULTATION /
 CAREER / GENERAL), `name`, `email`, `phone`, `subject`, `message`, `extra` (JSONB — a new form
 needs no migration), `source_page`, `is_read`.
 
-### 5.9 audit
+### 5.8 audit
 
 **`AuditLog`** — `user` (SET_NULL), `action` (CREATE / UPDATE / DELETE / LOGIN / LOGOUT /
 PUBLISH / UNPUBLISH), `content_type`, `object_id`, `object_repr`, `changes` (JSONB),

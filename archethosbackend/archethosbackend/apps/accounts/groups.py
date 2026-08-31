@@ -10,14 +10,9 @@ this one definition, so there is no second copy to drift.
 """
 
 CONTENT_APPS = [
-    "projects",
-    "services",
-    "blogs",
-    "faqs",
-    "counters",
+    "content",
     "sections",
     "pages",
-    "company",
     "media_library",
     "enquiries",
 ]
