@@ -20,9 +20,14 @@ db.sqlite3-journal
 /static_root/
 
 # Environment
+#
+# Deny-by-default: every .env* is ignored unless explicitly excepted, so a new
+# .env.staging cannot be committed by accident. Only templates are excepted,
+# and they must never contain a real value.
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Editors / OS
 .vscode/
