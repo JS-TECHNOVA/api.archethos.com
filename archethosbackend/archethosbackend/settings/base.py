@@ -229,9 +229,20 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = AUTH_COOKIE_SAMESITE
 CSRF_COOKIE_SECURE = AUTH_COOKIE_SECURE
+# Must track the auth cookies. The frontend is served from a different host to
+# the API (archethos.com vs api.archethos.com), and a host-only csrftoken set by
+# the API is unreadable to JavaScript on the frontend — so axios sends no
+# X-CSRFToken and every unsafe request is rejected. Widening it to the parent
+# domain is what lets the two hosts share one token.
+#
+# Left as None in development, where both run on localhost and the question does
+# not arise. A cookie with no Domain attribute is host-only, which is the
+# stricter of the two.
+CSRF_COOKIE_DOMAIN = AUTH_COOKIE_DOMAIN
 
 SESSION_COOKIE_SECURE = AUTH_COOKIE_SECURE
 SESSION_COOKIE_SAMESITE = AUTH_COOKIE_SAMESITE
+SESSION_COOKIE_DOMAIN = AUTH_COOKIE_DOMAIN
 
 # ─── OpenAPI schema ──────────────────────────────────────────────────────────
 SPECTACULAR_SETTINGS = {

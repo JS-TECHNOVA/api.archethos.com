@@ -507,3 +507,24 @@ class EmailUniquenessTests(TestCase):
         User.objects.create_user(username="no-email-1", email="", password="x")
         User.objects.create_user(username="no-email-2", email="", password="x")
         self.assertEqual(User.objects.filter(email="").count(), 2)
+
+
+class CookieScopeTests(TestCase):
+    """The CSRF cookie must reach as far as the auth cookies do.
+
+    The frontend runs on a different host to the API. A csrftoken scoped only to
+    api.archethos.com is invisible to JavaScript on archethos.com, so axios
+    sends no X-CSRFToken and every unsafe request fails CSRF — while the auth
+    cookie, scoped to the parent domain, arrives fine. The failure therefore
+    looks like a broken CSRF implementation rather than a cookie scope.
+    """
+
+    def test_csrf_cookie_is_scoped_like_the_auth_cookies(self):
+        self.assertEqual(settings.CSRF_COOKIE_DOMAIN, settings.AUTH_COOKIE_DOMAIN)
+
+    def test_session_cookie_is_scoped_like_the_auth_cookies(self):
+        self.assertEqual(settings.SESSION_COOKIE_DOMAIN, settings.AUTH_COOKIE_DOMAIN)
+
+    def test_the_csrf_cookie_stays_readable_to_javascript(self):
+        """HttpOnly here would break the echo-back the header depends on."""
+        self.assertFalse(settings.CSRF_COOKIE_HTTPONLY)
