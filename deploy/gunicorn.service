@@ -1,0 +1,62 @@
+# Archethos API — gunicorn under systemd.
+#
+# Install:
+#   sudo cp deploy/gunicorn.service /etc/systemd/system/archethos-api.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now archethos-api
+#
+# Logs:  journalctl -u archethos-api -f
+# Reload after a deploy:  sudo systemctl reload archethos-api
+
+[Unit]
+Description=Archethos CMS API (gunicorn)
+# Postgres is on this host, so do not start before it is accepting connections.
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=notify
+User=archethos
+# nginx runs as www-data and has to read static/ and media/. Sharing the group
+# is what makes that possible without world-readable directories.
+Group=www-data
+
+WorkingDirectory=/srv/archethos/api/archethosbackend
+Environment="DJANGO_SETTINGS_MODULE=archethosbackend.settings.production"
+Environment="PYTHONUNBUFFERED=1"
+
+# systemd creates and owns this, and removes it on stop — so a crashed process
+# never leaves a stale socket that nginx keeps trying to reach.
+RuntimeDirectory=archethos
+RuntimeDirectoryMode=0750
+
+ExecStart=/srv/archethos/api/.venv/bin/gunicorn \
+    --bind unix:/run/archethos/gunicorn.sock \
+    --workers 3 \
+    --timeout 60 \
+    --graceful-timeout 30 \
+    --keep-alive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 100 \
+    --access-logfile - \
+    --error-logfile - \
+    archethosbackend.wsgi:application
+
+# Zero-downtime code reload: finishes in-flight requests before swapping.
+ExecReload=/bin/kill -s HUP $MAINPID
+
+Restart=always
+RestartSec=3
+
+# ── Hardening ────────────────────────────────────────────────────────────────
+# The process needs to write exactly two directories: uploaded media, and the
+# collected static files at deploy time. Everything else is read-only to it, so
+# a compromise through the upload endpoint cannot reach the rest of the disk.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/archethos/api/media /srv/archethos/api/staticfiles
+
+[Install]
+WantedBy=multi-user.target
