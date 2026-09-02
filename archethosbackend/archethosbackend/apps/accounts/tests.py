@@ -204,6 +204,135 @@ class AuthFlowTests(TestCase):
         self.assertTrue(self.user.check_password("a-brand-new-secret-99"))
 
 
+class LoginIdentifierTests(TestCase):
+    """One field, two kinds of credential."""
+
+    password = "correct-horse-battery-staple"
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(
+            username="elsker", email="elsker@archethos.test", password=cls.password
+        )
+
+    def login(self, identifier, key="email", password=None):
+        return Client().post(
+            reverse("v1:auth:login"),
+            {key: identifier, "password": password or self.password},
+            content_type="application/json",
+        )
+
+    def test_login_with_an_email(self):
+        response = self.login("elsker@archethos.test")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["data"]["email"], "elsker@archethos.test")
+
+    def test_login_with_a_username(self):
+        response = self.login("elsker")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["data"]["username"], "elsker")
+
+    def test_the_username_key_works_as_an_alias(self):
+        self.assertEqual(self.login("elsker", key="username").status_code, 200)
+        self.assertEqual(
+            self.login("elsker@archethos.test", key="username").status_code, 200
+        )
+
+    def test_both_are_case_insensitive(self):
+        self.assertEqual(self.login("ELSKER").status_code, 200)
+        self.assertEqual(self.login("Elsker@Archethos.Test").status_code, 200)
+
+    def test_surrounding_whitespace_is_tolerated(self):
+        self.assertEqual(self.login("  elsker  ").status_code, 200)
+
+    def test_a_wrong_password_is_rejected_for_either_form(self):
+        self.assertEqual(self.login("elsker", password="nope").status_code, 400)
+        self.assertEqual(
+            self.login("elsker@archethos.test", password="nope").status_code, 400
+        )
+
+    def test_an_empty_identifier_is_rejected(self):
+        response = self.login("")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("email", response.json()["errors"])
+
+    def test_a_missing_identifier_is_rejected(self):
+        response = Client().post(
+            reverse("v1:auth:login"),
+            {"password": self.password},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_the_failure_message_is_human_readable(self):
+        """Regression: DRF wraps {"detail": "..."} into a list, so a naive str()
+        rendered `[ErrorDetail(string='...', code='...')]` into the message."""
+        body = self.login("elsker", password="nope").json()
+        self.assertEqual(body["message"], "Invalid credentials.")
+        self.assertNotIn("ErrorDetail", body["message"])
+        self.assertEqual(body["code"], "invalid_credentials")
+
+    def test_every_failure_gives_the_same_message(self):
+        """No account enumeration: unknown, wrong password and deactivated all
+        look identical from outside."""
+        unknown_user = self.login("nobody")
+        unknown_email = self.login("nobody@archethos.test")
+        wrong_password = self.login("elsker", password="nope")
+
+        for other in (unknown_user, unknown_email):
+            self.assertEqual(other.json()["errors"], wrong_password.json()["errors"])
+            self.assertEqual(other.json()["message"], wrong_password.json()["message"])
+
+    def test_a_username_shaped_like_an_email_cannot_shadow_another_account(self):
+        """The regex is what prevents this.
+
+        `impostor` has a *username* equal to `victim`'s *email*. Because the
+        identifier is email-shaped it is matched against the email column, so the
+        real owner authenticates — not the impostor.
+        """
+        victim = User.objects.create_user(
+            username="victim", email="target@archethos.test", password="victim-password-1"
+        )
+        User.objects.create_user(
+            username="target@archethos.test",
+            email="impostor@archethos.test",
+            password="impostor-password-1",
+        )
+
+        # The impostor's own password must not open the victim's address.
+        self.assertEqual(
+            self.login("target@archethos.test", password="impostor-password-1").status_code,
+            400,
+        )
+        # The victim's password does.
+        response = self.login("target@archethos.test", password="victim-password-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["id"], victim.pk)
+
+    def test_a_deactivated_user_cannot_log_in_by_either_form(self):
+        User.objects.filter(pk=self.user.pk).update(is_active=False)
+        self.assertEqual(self.login("elsker").status_code, 400)
+        self.assertEqual(self.login("elsker@archethos.test").status_code, 400)
+
+
+class EmailShapeDetectionTests(TestCase):
+    """Which column the identifier is matched against."""
+
+    def test_email_shaped_values(self):
+        from .backends import looks_like_email
+
+        for value in ["a@b.co", "first.last+tag@sub.example.com", "  x@y.z  "]:
+            with self.subTest(value=value):
+                self.assertTrue(looks_like_email(value))
+
+    def test_username_shaped_values(self):
+        from .backends import looks_like_email
+
+        for value in ["elsker", "el.sker", "a@b", "a@b.", "@b.co", "a b@c.co", "", None]:
+            with self.subTest(value=value):
+                self.assertFalse(looks_like_email(value))
+
+
 class CSRFTests(TestCase):
     """Cookie auth is CSRF-relevant; header auth is not."""
 

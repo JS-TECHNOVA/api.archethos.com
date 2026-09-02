@@ -11,21 +11,43 @@ User = get_user_model()
 
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    """One credential field that accepts an email address or a username.
+
+    `email` is a plain CharField, not an EmailField: the same box takes both, and
+    an EmailField would reject a username before authentication ever ran.
+    `username` is accepted as an alias so either key works from the frontend.
+    """
+
+    email = serializers.CharField(
+        required=False, allow_blank=True,
+        help_text="Email address or username.",
+    )
+    username = serializers.CharField(
+        required=False, allow_blank=True,
+        help_text="Alias for `email`; send either.",
+    )
     password = serializers.CharField(write_only=True, trim_whitespace=False)
 
     def validate(self, attrs):
+        identifier = (attrs.get("email") or attrs.get("username") or "").strip()
+        if not identifier:
+            raise serializers.ValidationError(
+                {"email": ["Enter your email address or username."]}
+            )
+
+        # Passed as `username` because that is the argument Django's auth
+        # backends take; EmailOrUsernameBackend decides which column to match.
         user = authenticate(
             request=self.context.get("request"),
-            email=attrs["email"],
+            username=identifier,
             password=attrs["password"],
         )
 
-        # One message for every failure mode: wrong email, wrong password and
+        # One message for every failure mode: unknown account, wrong password and
         # deactivated account are indistinguishable to an attacker.
         if user is None:
             raise serializers.ValidationError(
-                {"detail": "Invalid email or password."}, code="invalid_credentials"
+                {"detail": "Invalid credentials."}, code="invalid_credentials"
             )
 
         attrs["user"] = user

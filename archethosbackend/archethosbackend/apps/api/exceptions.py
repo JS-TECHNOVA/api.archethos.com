@@ -50,9 +50,15 @@ def envelope_exception_handler(exc, context):
     code = getattr(exc, "default_code", None) or "error"
 
     if isinstance(detail, dict) and set(detail) == {"detail"}:
-        message = str(detail["detail"])
+        # DRF normalises a raised ValidationError({"detail": "..."}) into
+        # {"detail": [ErrorDetail("...")]}, so str() on the value would render a
+        # list repr into the user-facing message.
+        value = detail["detail"]
+        if isinstance(value, (list, tuple)):
+            value = value[0] if value else "Request failed"
+        message = str(value)
         errors = {}
-        code = getattr(detail["detail"], "code", code)
+        code = getattr(value, "code", code)
     elif isinstance(detail, list):
         message = _MESSAGES.get(response.status_code, "Request failed")
         errors = {"non_field_errors": detail}

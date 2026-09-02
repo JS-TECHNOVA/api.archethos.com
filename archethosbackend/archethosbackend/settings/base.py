@@ -106,13 +106,19 @@ DATABASES = {
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Django's built-in auth.User is used as-is. Login is by email, so an email
-# backend is added alongside the default one (which Django Admin still needs for
-# username login). A case-insensitive unique index on auth_user.email is created
-# in accounts/migrations/0001 to keep email login unambiguous.
+# Django's built-in auth.User is used as-is. One login field accepts either an
+# email address or a username; EmailOrUsernameBackend inspects the identifier
+# and queries the matching column. A case-insensitive unique index on
+# auth_user.email (accounts/migrations/0001) keeps email login unambiguous.
+#
+# ModelBackend is deliberately NOT listed. It subclasses cleanly into
+# EmailOrUsernameBackend (which is where the permission machinery comes
+# from), and leaving it in the chain would defeat the whole point: when this
+# backend correctly refuses an email-shaped identifier, Django would fall
+# through to ModelBackend, match the *username* column, and let a user whose
+# username equals someone else's email address in. A test pins that.
 AUTHENTICATION_BACKENDS = [
-    "archethosbackend.apps.accounts.backends.EmailBackend",
-    "django.contrib.auth.backends.ModelBackend",
+    "archethosbackend.apps.accounts.backends.EmailOrUsernameBackend",
 ]
 
 AUTH_PASSWORD_VALIDATORS = [

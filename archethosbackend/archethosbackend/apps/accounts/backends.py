@@ -1,34 +1,55 @@
 """
-Email authentication for Django's built-in User.
+Login by email *or* username, through one input field.
 
-auth.User keys on `username`, but the CMS logs in with an email address. This
-backend resolves the email to a user; a case-insensitive unique index on
-auth_user.email (accounts/migrations/0001) guarantees that resolution is
-unambiguous.
+The CMS login form has a single "Email or username" box. Rather than trying both
+columns and hoping, the identifier is inspected first: if it looks like an email
+address it is matched against `email`, otherwise against `username`.
+
+Deciding up front matters for more than tidiness. Falling through both columns
+means a user whose *username* happens to be "someone@example.com" could shadow a
+different account's *email* — the regex removes that ambiguity entirely.
 """
+
+import re
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
 
 UserModel = get_user_model()
 
+#: Deliberately permissive. This only decides *which column to query* — it is not
+#: an address validator, and rejecting an unusual-but-real address here would
+#: lock someone out. Real validation happens when the account is created.
+EMAIL_SHAPED = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-class EmailBackend(ModelBackend):
+
+def looks_like_email(identifier):
+    return bool(EMAIL_SHAPED.match((identifier or "").strip()))
+
+
+class EmailOrUsernameBackend(ModelBackend):
+    """Resolve one identifier to a user, by email or by username."""
+
     def authenticate(self, request, username=None, password=None, **kwargs):
-        email = kwargs.get("email") or username
-        if not email or not password:
+        # The login serializer sends the value as `username`; Django Admin and
+        # `createsuperuser` also use `username`. `email` is accepted so an older
+        # caller passing that key keeps working.
+        identifier = (kwargs.get("email") or username or "").strip()
+        if not identifier or not password:
             return None
 
+        lookup = "email__iexact" if looks_like_email(identifier) else "username__iexact"
+
         try:
-            user = UserModel._default_manager.get(email__iexact=email)
+            user = UserModel._default_manager.get(**{lookup: identifier})
         except UserModel.DoesNotExist:
-            # Run the hasher anyway so a missing account and a wrong password
-            # take the same amount of time (no user enumeration by timing).
+            # Hash anyway so a missing account and a wrong password take the same
+            # time — otherwise the response time reveals which accounts exist.
             UserModel().set_password(password)
             return None
         except UserModel.MultipleObjectsReturned:
-            # Should be impossible given the unique index, but never guess which
-            # account was meant.
+            # Should be unreachable: username is unique, and email has a
+            # case-insensitive unique index. Never guess which account was meant.
             return None
 
         if user.check_password(password) and self.user_can_authenticate(user):
