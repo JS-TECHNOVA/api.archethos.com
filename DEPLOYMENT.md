@@ -228,19 +228,22 @@ sudo ln -sf /etc/nginx/sites-available/api.archethos.com /etc/nginx/sites-enable
 sudo rm -f /etc/nginx/sites-enabled/default
 ```
 
-The shipped file has its `ssl_certificate` lines commented out, so nginx will
-not start with the 443 block yet. Comment out the whole `server { listen 443 ... }`
-block, start nginx on port 80, then let certbot write the TLS config:
+The shipped file is **HTTP-only and complete** — it has no 443 block, because a
+hand-written one cannot start before a certificate exists. Start nginx, then let
+certbot add TLS:
 
 ```bash
 sudo nginx -t && sudo systemctl restart nginx
+
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d api.archethos.com --agree-tos -m you@example.com --redirect
 ```
 
-certbot rewrites the file with real certificate paths and a redirect. Then
-restore the tuned directives it does not add — `client_max_body_size 25M;` and
-the `/static/` and `/media/` blocks — into the 443 server it produced, and:
+`certbot --nginx` copies the whole server block into a new one on 443, fills in
+the certificate paths, and turns the port-80 block into a redirect. Because it
+copies rather than generates, `client_max_body_size` and the `/static/` and
+`/media/` locations come across on their own — there is nothing to restore
+afterwards.
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -248,8 +251,17 @@ sudo nginx -t && sudo systemctl reload nginx
 
 > **`client_max_body_size` is the one people lose.** nginx defaults to 1 MB and
 > answers **413** before Django sees the request, so a 20 MB upload fails with
-> no Django log line and looks like a broken endpoint. It must be above
-> `MAX_UPLOAD_SIZE_MB` so Django owns the rejection and can explain it.
+> no Django log line and looks like a broken endpoint. It is set to 25M above,
+> in the block certbot copies, so it survives.
+
+**HTTP/2 is optional and version-dependent.** The standalone `http2 on;`
+directive is nginx 1.25+; Ubuntu 24.04 ships 1.24, where it fails to parse with
+*"unknown directive"*. Check with `nginx -v`, then in certbot's 443 block:
+
+| nginx | what to write |
+|---|---|
+| 1.25+ | add `http2 on;` |
+| 1.24 | change `listen 443 ssl;` to `listen 443 ssl http2;` |
 
 Renewal is automatic via certbot's systemd timer — confirm with:
 
