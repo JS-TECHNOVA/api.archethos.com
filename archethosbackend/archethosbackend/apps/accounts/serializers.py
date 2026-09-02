@@ -97,6 +97,41 @@ class CurrentUserSerializer(serializers.ModelSerializer):
         return sorted(user.get_all_permissions())
 
 
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """A user editing their own details.
+
+    Needs no `auth.change_user`: changing your own name is not user
+    administration, and requiring that permission would mean every editor could
+    also edit everyone else.
+
+    `username` is deliberately absent. It is a login identifier — someone may be
+    signing in with it right now — so it is shown in the UI and never accepted
+    here. Role and status fields are absent for the obvious reason: this
+    endpoint would otherwise be a self-service promotion to superuser.
+    """
+
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "email"]
+        extra_kwargs = {"email": {"required": False}}
+
+    def validate_email(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("An email address is required.")
+
+        # Mirrors the case-insensitive unique index so the client gets a field
+        # error rather than a database 409.
+        clashes = User.objects.filter(email__iexact=value).exclude(
+            pk=self.instance.pk
+        )
+        if clashes.exists():
+            raise serializers.ValidationError(
+                "Another account already uses this email address."
+            )
+        return value
+
+
 class PasswordChangeSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True, trim_whitespace=False)
     new_password = serializers.CharField(write_only=True, trim_whitespace=False)

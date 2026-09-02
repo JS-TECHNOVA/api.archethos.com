@@ -204,6 +204,94 @@ class AuthFlowTests(TestCase):
         self.assertTrue(self.user.check_password("a-brand-new-secret-99"))
 
 
+class ProfileUpdateTests(TestCase):
+    """A user editing their own details, without user-admin rights."""
+
+    password = "correct-horse-battery-staple"
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="elsker", email="elsker@archethos.test",
+            password=self.password, first_name="El", last_name="Sker",
+        )
+        self.client_ = Client()
+        assert self.client_.post(
+            reverse("v1:auth:login"),
+            {"email": "elsker", "password": self.password},
+            content_type="application/json",
+        ).status_code == 200
+
+    def patch(self, payload, client=None):
+        return (client or self.client_).patch(
+            reverse("v1:auth:me"), payload, content_type="application/json"
+        )
+
+    def test_a_user_can_update_their_own_name(self):
+        """No auth.change_user needed — editing your own name is not user admin."""
+        self.assertFalse(self.user.has_perm("auth.change_user"))
+
+        response = self.patch({"first_name": "Shubham", "last_name": "Chauhan"})
+        self.assertEqual(response.status_code, 200, response.content)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Shubham")
+        self.assertEqual(self.user.last_name, "Chauhan")
+
+    def test_the_response_is_the_same_shape_as_get(self):
+        """So the client can drop it into the session cache without refetching."""
+        body = self.patch({"first_name": "Shubham"}).json()["data"]
+        for key in ("id", "email", "username", "permissions", "groups", "is_superuser"):
+            self.assertIn(key, body)
+
+    def test_email_can_be_changed(self):
+        response = self.patch({"email": "new@archethos.test"})
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "new@archethos.test")
+
+    def test_a_taken_email_is_rejected_as_a_field_error(self):
+        User.objects.create_user(
+            username="other", email="taken@archethos.test", password="x"
+        )
+        response = self.patch({"email": "taken@archethos.test"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("email", response.json()["errors"])
+
+    def test_username_cannot_be_changed(self):
+        """It is a login identifier — someone may be signing in with it."""
+        self.patch({"username": "hacker"})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "elsker")
+
+    def test_privilege_fields_are_ignored(self):
+        """This endpoint must never be a self-service promotion."""
+        self.patch({"is_superuser": True, "is_staff": True, "is_active": False})
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_superuser)
+        self.assertFalse(self.user.is_staff)
+        self.assertTrue(self.user.is_active)
+
+    def test_changing_email_still_allows_login_by_the_old_username(self):
+        self.patch({"email": "moved@archethos.test"})
+
+        response = Client().post(
+            reverse("v1:auth:login"),
+            {"email": "elsker", "password": self.password},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_anonymous_cannot_patch(self):
+        self.assertEqual(
+            Client().patch(
+                reverse("v1:auth:me"), {"first_name": "X"},
+                content_type="application/json",
+            ).status_code,
+            401,
+        )
+
+
 class LoginIdentifierTests(TestCase):
     """One field, two kinds of credential."""
 

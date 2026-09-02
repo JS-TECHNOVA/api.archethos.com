@@ -27,6 +27,11 @@ from archethosbackend.apps.content.admin_views import (
     ServiceListCreateAPIView,
 )
 
+from archethosbackend.apps.api.dashboard_views import (
+    AdminCountsAPIView,
+    DashboardStatsAPIView,
+)
+
 from archethosbackend.apps.enquiries.views import (
     EnquiryDetailAPIView,
     EnquiryListAPIView,
@@ -57,6 +62,7 @@ from archethosbackend.apps.media_library.views import (
     MediaDetailAPIView,
     MediaDuplicateCheckAPIView,
     MediaListAPIView,
+    MediaReplaceAPIView,
     MediaUploadAPIView,
     MediaUsageAPIView,
     MediaYouTubeAPIView,
@@ -74,6 +80,9 @@ from archethosbackend.apps.accounts.admin_views import (
 )
 
 urlpatterns = [
+    # Admin chrome: sidebar badges and the dashboard figures.
+    path("counts/", AdminCountsAPIView.as_view(), name="counts"),
+    path("dashboard/stats/", DashboardStatsAPIView.as_view(), name="dashboard-stats"),
     # Users
     path("users/", UserListCreateAPIView.as_view(), name="user-list"),
     path("users/<int:pk>/", UserDetailAPIView.as_view(), name="user-detail"),
@@ -106,6 +115,12 @@ urlpatterns = [
     ),
     path("media/<int:pk>/", MediaDetailAPIView.as_view(), name="media-detail"),
     path("media/<int:pk>/usage/", MediaUsageAPIView.as_view(), name="media-usage"),
+    # Swaps the file in place; the id, path and descriptive fields survive.
+    path(
+        "media/<int:pk>/replace/",
+        MediaReplaceAPIView.as_view(),
+        name="media-replace",
+    ),
     # Services
     path("services/", ServiceListCreateAPIView.as_view(), name="service-list"),
     path("services/<int:pk>/", ServiceDetailAPIView.as_view(), name="service-detail"),

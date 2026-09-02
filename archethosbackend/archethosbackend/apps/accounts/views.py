@@ -27,6 +27,7 @@ from .serializers import (
     CurrentUserSerializer,
     LoginSerializer,
     PasswordChangeSerializer,
+    ProfileUpdateSerializer,
 )
 
 
@@ -168,6 +169,29 @@ class MeView(APIView):
             context={"request": request},
         )
         return Response(serializer.data)
+
+    @extend_schema(
+        tags=["auth"],
+        summary="Update your own profile",
+        request=ProfileUpdateSerializer,
+        responses={200: CurrentUserSerializer},
+        description=(
+            "Name and email only. `username` is a login identifier and is not "
+            "editable; role and status fields are not accepted here at all."
+        ),
+    )
+    def patch(self, request):
+        serializer = ProfileUpdateSerializer(
+            request.user, data=request.data, partial=True, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        # Return the same shape as GET, so the client can drop it straight into
+        # the session cache instead of refetching.
+        return Response(
+            CurrentUserSerializer(request.user, context={"request": request}).data
+        )
 
 
 class PasswordChangeView(APIView):
