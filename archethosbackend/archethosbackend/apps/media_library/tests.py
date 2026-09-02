@@ -323,6 +323,50 @@ class MediaDetailTests(MediaTestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(MediaAsset.objects.filter(pk=self.asset.pk).exists())
 
+    def test_usage_finds_content_that_references_the_asset(self):
+        """Regression.
+
+        Every media FK declares `related_name="+"`, so Django creates no reverse
+        accessor and `_meta.related_objects` is empty. The first implementation
+        walked that list and therefore always answered "used by 0" — while
+        PROTECT was refusing the delete of the very same asset. The endpoint
+        exists to warn before a delete, so answering zero was worse than not
+        having it.
+        """
+        from archethosbackend.apps.content.models import Project, ProjectGalleryItem
+        from archethosbackend.apps.sections.models import HeroSection, HeroSlide
+
+        project = Project.objects.create(title="Villa", featured_image=self.asset)
+        ProjectGalleryItem.objects.create(
+            project=project, media=self.asset, order=0
+        )
+        hero = HeroSection.objects.create(internal_label="Home hero")
+        HeroSlide.objects.create(section=hero, heading="Hi", media=self.asset, order=0)
+
+        usage = self.asset.usage()
+        found = {(row["model"], row["field"]) for row in usage}
+
+        self.assertEqual(len(usage), 3, usage)
+        self.assertIn(("project", "featured_image"), found)
+        self.assertIn(("projectgalleryitem", "media"), found)
+        self.assertIn(("heroslide", "media"), found)
+
+    def test_usage_endpoint_agrees_with_what_delete_does(self):
+        """The two must never contradict each other."""
+        from archethosbackend.apps.content.models import Project
+
+        Project.objects.create(title="Villa", featured_image=self.asset)
+
+        body = self.client_.get(
+            reverse("v1:admin:media-usage", args=[self.asset.pk])
+        ).json()["data"]
+        self.assertEqual(body["count"], 1)
+
+        response = self.client_.delete(
+            reverse("v1:admin:media-detail", args=[self.asset.pk])
+        )
+        self.assertEqual(response.status_code, 409)
+
     def test_usage_endpoint_reports_nothing_for_an_unused_asset(self):
         body = self.client_.get(
             reverse("v1:admin:media-usage", args=[self.asset.pk])

@@ -42,6 +42,24 @@ class SourceType(models.TextChoices):
     YOUTUBE = "YOUTUBE", "YouTube"
 
 
+class MediaLocation(models.TextChoices):
+    """Where the bytes physically live.
+
+    Distinct from `source_type`, which says how the asset was *created*. This
+    says where it is *stored now*, and the two move independently: an uploaded
+    file starts on local disk and may later be moved to object storage without
+    ever stopping being an upload.
+
+    It exists so that migration can be incremental — flip the storage backend,
+    move files in batches, and `?media_location=local` tells you what is left.
+    Without it, "have we moved everything yet?" is unanswerable.
+    """
+
+    LOCAL = "local", "Local disk"
+    S3 = "s3", "S3-compatible object storage"
+    EXTERNAL = "external", "External URL or CDN"
+
+
 class MediaAssetQuerySet(models.QuerySet):
     def images(self):
         return self.filter(media_type=MediaType.IMAGE)
@@ -56,6 +74,16 @@ class MediaAsset(TimeStampedModel):
     )
     source_type = models.CharField(
         max_length=16, choices=SourceType.choices, default=SourceType.UPLOAD
+    )
+
+    #: Read-only through the API: this is a fact about storage, not something an
+    #: editor decides. It changes when files actually move, which is a
+    #: management command's job, not a PATCH.
+    media_location = models.CharField(
+        max_length=16,
+        choices=MediaLocation.choices,
+        default=MediaLocation.LOCAL,
+        db_index=True,
     )
 
     # Exactly one of these is populated, enforced by the check constraints below.
@@ -74,12 +102,27 @@ class MediaAsset(TimeStampedModel):
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)
 
+    # ── Descriptive fields. Editable for the life of the asset; none of them
+    #    affect the stored file. ──────────────────────────────────────────────
     title = models.CharField(max_length=255, blank=True)
     alt_text = models.CharField(
         max_length=255,
         blank=True,
         help_text="Describes the image for screen readers and search engines.",
     )
+    caption = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Shown beside the image where a layout has room for one.",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Internal notes: where it came from, usage rights, who is in it.",
+    )
+    #: Free-form labels, normalised to lowercase on save so "Villa" and "villa"
+    #: are the same tag. JSONB rather than a join table: tags here are a search
+    #: aid on a few hundred rows, not a taxonomy with its own screens.
+    tags = models.JSONField(default=list, blank=True)
 
     #: sha256 of the uploaded bytes. Indexed so re-uploading an identical file can
     #: be detected and the existing asset offered instead of a duplicate.
@@ -134,32 +177,49 @@ class MediaAsset(TimeStampedModel):
         media_url = settings.MEDIA_URL if settings.MEDIA_URL.startswith("/") else f"/{settings.MEDIA_URL}"
         return f"{media_url.rstrip('/')}/{self.file.name}"
 
-    def usage(self):
+    @property
+    def extension(self):
+        """The stored file's extension, lowercased, including the dot."""
+        name = self.file.name if self.file else ""
+        dot = name.rfind(".")
+        return name[dot:].lower() if dot != -1 else ""
+
+    def usage(self, limit=50):
         """Every object currently pointing at this asset.
 
-        Walks the reverse relations Django already tracks, so a new model with a
-        media ForeignKey shows up here without touching this method.
+        Scans the app registry for ForeignKeys whose target is MediaAsset,
+        rather than walking `_meta.related_objects`.
+
+        That distinction is the whole bug this replaced: every media FK in the
+        project declares `related_name="+"`, which tells Django not to create a
+        reverse accessor at all — so `related_objects` is empty and the previous
+        implementation always reported "used by 0" while `PROTECT` was
+        simultaneously refusing the delete. The two answers contradicted each
+        other, and the wrong one was the reassuring one.
+
+        Scanning forward FKs also means a new model with a media field appears
+        here the moment it is added, with no `related_name` to remember.
         """
+        from django.apps import apps
+
         found = []
-        for relation in self._meta.related_objects:
-            if not relation.one_to_many and not relation.one_to_one:
-                continue
-            accessor = relation.get_accessor_name()
-            related_model = relation.related_model
-            # Skip the reverse side of uploaded_by — that is authorship, not usage.
-            if relation.field.name == "uploaded_by":
-                continue
-            manager = getattr(self, accessor, None)
-            if manager is None:
-                continue
-            for obj in manager.all()[:50]:
-                found.append(
-                    {
-                        "app_label": related_model._meta.app_label,
-                        "model": related_model._meta.model_name,
-                        "id": obj.pk,
-                        "label": str(obj),
-                        "field": relation.field.name,
-                    }
-                )
+        for model in apps.get_models():
+            for field in model._meta.get_fields():
+                if not getattr(field, "many_to_one", False):
+                    continue
+                if field.related_model is not type(self):
+                    continue
+
+                for obj in model._default_manager.filter(
+                    **{field.name: self.pk}
+                )[:limit]:
+                    found.append(
+                        {
+                            "app_label": model._meta.app_label,
+                            "model": model._meta.model_name,
+                            "label": str(obj),
+                            "id": obj.pk,
+                            "field": field.name,
+                        }
+                    )
         return found

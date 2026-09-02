@@ -8,6 +8,7 @@ they write to.
 """
 
 import django_filters
+from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.generics import get_object_or_404
@@ -23,10 +24,12 @@ from archethosbackend.apps.api.generics import (
 from archethosbackend.apps.api.permissions import HasModelPermission
 
 from .models import MediaAsset
+from .services import replace_file
 from .serializers import (
     MediaAssetDetailSerializer,
     MediaAssetListSerializer,
     MediaAssetUpdateSerializer,
+    MediaReplaceSerializer,
     MediaUploadSerializer,
     YouTubeCreateSerializer,
 )
@@ -39,10 +42,16 @@ class MediaFilterSet(django_filters.FilterSet):
     created_before = django_filters.DateFilter(
         field_name="created_at", lookup_expr="date__lte"
     )
+    #: `?tag=villa` — tags are stored lowercase, so the lookup is exact.
+    tag = django_filters.CharFilter(method="filter_by_tag")
 
     class Meta:
         model = MediaAsset
-        fields = ["media_type", "source_type", "mime_type"]
+        fields = ["media_type", "source_type", "media_location", "mime_type", "tag"]
+
+    def filter_by_tag(self, queryset, name, value):
+        tag = " ".join((value or "").strip().lower().split())
+        return queryset.filter(tags__contains=[tag]) if tag else queryset
 
 
 class MediaListAPIView(AdminListAPIView):
@@ -55,8 +64,8 @@ class MediaListAPIView(AdminListAPIView):
     queryset = MediaAsset.objects.select_related("uploaded_by")
     list_serializer_class = MediaAssetListSerializer
     filterset_class = MediaFilterSet
-    search_fields = ["title", "alt_text", "file_name"]
-    ordering_fields = ["created_at", "file_size", "title", "media_type"]
+    search_fields = ["title", "alt_text", "caption", "description", "file_name"]
+    ordering_fields = ["created_at", "file_size", "title", "media_type", "media_location"]
 
     @extend_schema(
         tags=["admin:media"],
@@ -64,6 +73,11 @@ class MediaListAPIView(AdminListAPIView):
         parameters=[
             OpenApiParameter("media_type", str, description="IMAGE, VIDEO or DOCUMENT"),
             OpenApiParameter("source_type", str, description="UPLOAD or YOUTUBE"),
+            OpenApiParameter(
+                "media_location",
+                str,
+                description="Where the bytes live: local, s3 or external.",
+            ),
             OpenApiParameter("search", str, description="Matches title, alt text, filename"),
         ],
     )
@@ -150,6 +164,59 @@ class MediaYouTubeAPIView(APIView):
         return Response(
             MediaAssetDetailSerializer(asset, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
+        )
+
+
+class MediaReplaceAPIView(APIView):
+    """Swap the bytes behind an existing asset, keeping its identity.
+
+    The id, the stored path and every descriptive field survive, so nothing
+    referencing this asset has to be repointed — that is the whole reason this
+    exists rather than "upload a new one and update every usage".
+
+    ⚠️ The URL does not change, so a browser or CDN holding the old file may
+    keep serving it until its cache expires. Cache-bust with `?v={updated_at}`
+    where that matters.
+    """
+
+    permission_classes = [IsAuthenticated, HasModelPermission]
+    required_permissions = ["media_library.change_mediaasset"]
+    parser_classes = [MultiPartParser, FormParser]
+    envelope_message = "File replaced successfully"
+
+    @extend_schema(
+        tags=["admin:media"],
+        summary="Replace an asset's file",
+        request={"multipart/form-data": MediaReplaceSerializer},
+        responses={200: MediaAssetDetailSerializer},
+        description=(
+            "Overwrites the stored file in place. The replacement must share the "
+            "original's extension and media type, because the path is kept. "
+            "Title, alt text, caption, description and tags are untouched; size, "
+            "dimensions, mime type and checksum are recomputed."
+        ),
+    )
+    def post(self, request, pk):
+        asset = get_object_or_404(MediaAsset, pk=pk)
+
+        serializer = MediaReplaceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            replace_file(asset, serializer.validated_data["file"])
+        except DjangoValidationError as exc:
+            return Response(
+                {
+                    "success": False,
+                    "message": exc.messages[0],
+                    "errors": {"file": list(exc.messages)},
+                    "code": "invalid",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            MediaAssetDetailSerializer(asset, context={"request": request}).data
         )
 
 
