@@ -131,9 +131,9 @@ sudo rm -f /var/www/api.archethos.com/index.html
 ## 5. Virtualenv
 
 ```bash
-python3.12 -m venv /var/www/api.archethos.com/.venv
-/var/www/api.archethos.com/.venv/bin/pip install --upgrade pip
-/var/www/api.archethos.com/.venv/bin/pip install -r /var/www/api.archethos.com/requirements/prod.txt
+python3.12 -m venv /var/www/api.archethos.com/venv
+/var/www/api.archethos.com/venv/bin/pip install --upgrade pip
+/var/www/api.archethos.com/venv/bin/pip install -r /var/www/api.archethos.com/requirements/prod.txt
 ```
 
 ---
@@ -167,7 +167,7 @@ Everything else in the template is already correct for this host.
 ```bash
 cd /var/www/api.archethos.com/archethosbackend
 export DJANGO_SETTINGS_MODULE=archethosbackend.settings.production
-V=/var/www/api.archethos.com/.venv/bin/python
+V=/var/www/api.archethos.com/venv/bin/python
 
 $V manage.py check --deploy
 $V manage.py migrate

@@ -33,7 +33,7 @@ Environment="PYTHONUNBUFFERED=1"
 RuntimeDirectory=archethos
 RuntimeDirectoryMode=0750
 
-ExecStart=/var/www/api.archethos.com/.venv/bin/gunicorn \
+ExecStart=/var/www/api.archethos.com/venv/bin/gunicorn \
     --bind unix:/run/archethos/gunicorn.sock \
     --workers 3 \
     --timeout 60 \

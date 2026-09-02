@@ -11,7 +11,7 @@
 set -euo pipefail
 
 APP_DIR="/var/www/api.archethos.com"
-VENV="$APP_DIR/.venv"
+VENV="$APP_DIR/venv"
 MANAGE="$VENV/bin/python $APP_DIR/archethosbackend/manage.py"
 SERVICE="archethos-api"
 
