@@ -18,7 +18,10 @@ class HeroSlideSerializer(serializers.ModelSerializer):
         model = HeroSlide
         fields = [
             "id", "label", "eyebrow", "heading", "heading_lines", "lead",
-            "media", "media_detail", "cta_label", "cta_url", "order",
+            "media", "media_detail",
+            "primary_cta_label", "primary_cta_url",
+            "secondary_cta_label", "secondary_cta_url",
+            "order",
         ]
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
@@ -32,7 +35,8 @@ class HeroSlideWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = HeroSlide
         fields = ["id", "label", "eyebrow", "heading", "lead", "media",
-                  "cta_label", "cta_url", "order"]
+                  "primary_cta_label", "primary_cta_url",
+                  "secondary_cta_label", "secondary_cta_url", "order"]
 
     def create(self, validated_data):
         validated_data["section"] = self.context["section"]
@@ -44,7 +48,7 @@ class HeroSectionListSerializer(BaseSectionListSerializer):
 
     class Meta(BaseSectionListSerializer.Meta):
         model = HeroSection
-        fields = BaseSectionListSerializer.Meta.fields + ["slides_count"]
+        fields = BaseSectionListSerializer.Meta.fields + ["variant", "slides_count"]
 
 
 class HeroSectionDetailSerializer(serializers.ModelSerializer):
@@ -53,14 +57,16 @@ class HeroSectionDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = HeroSection
         fields = (
-            SECTION_BASE_FIELDS + ["autoplay_seconds", "slides"] + SECTION_META_FIELDS
+            SECTION_BASE_FIELDS
+            + ["variant", "autoplay_seconds", "slides"]
+            + SECTION_META_FIELDS
         )
 
 
 class HeroSectionWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = HeroSection
-        fields = ["id", "internal_label", "autoplay_seconds"]
+        fields = ["id", "internal_label", "variant", "autoplay_seconds"]
 
 
 class PublicHeroSectionSerializer(serializers.ModelSerializer):
@@ -74,7 +80,7 @@ class PublicHeroSectionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HeroSection
-        fields = ["autoplay_seconds", "slides"]
+        fields = ["variant", "autoplay_seconds", "slides"]
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_slides(self, obj):
@@ -94,8 +100,10 @@ class PublicHeroSectionSerializer(serializers.ModelSerializer):
                     if slide.media
                     else None
                 ),
-                "cta_label": slide.cta_label,
-                "cta_url": slide.cta_url,
+                "primary_cta_label": slide.primary_cta_label,
+                "primary_cta_url": slide.primary_cta_url,
+                "secondary_cta_label": slide.secondary_cta_label,
+                "secondary_cta_url": slide.secondary_cta_url,
             }
             for slide in obj.slides.all()
         ]

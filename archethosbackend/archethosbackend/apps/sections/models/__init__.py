@@ -19,7 +19,7 @@ from .collections import (
     ServiceSectionItem,
     ServicesSection,
 )
-from .hero import HeroSection, HeroSlide
+from .hero import HeroSection, HeroSlide, HeroVariant
 from .simple import ContactInfoSection, CTASection, IntroSection, RichTextSection
 
 __all__ = [
@@ -36,6 +36,7 @@ __all__ = [
     "GallerySectionItem",
     "HeroSection",
     "HeroSlide",
+    "HeroVariant",
     "IntroSection",
     "RichTextSection",
     "Section",

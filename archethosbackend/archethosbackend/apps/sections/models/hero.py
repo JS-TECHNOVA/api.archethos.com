@@ -13,13 +13,30 @@ from archethosbackend.apps.core.models import OrderedItemModel, TimeStampedModel
 from .base import Section, SectionType
 
 
+class HeroVariant(models.TextChoices):
+    """Which hero component renders this.
+
+    A variant rather than two section types, because both take the same fields —
+    a photographic hero is one slide, a slider is several. Two models would mean
+    two tables, two registry entries and two sets of routes to express a
+    rendering difference. (Same call as GallerySection.layout_variant.)
+    """
+
+    SLIDER = "SLIDER", "Slider — several frames"
+    PHOTOGRAPHIC = "PHOTOGRAPHIC", "Photographic — a single frame"
+
+
 class HeroSection(Section):
     SECTION_TYPE = SectionType.HERO
+
+    variant = models.CharField(
+        max_length=16, choices=HeroVariant.choices, default=HeroVariant.SLIDER
+    )
 
     #: Optional: a one-slide hero is a perfectly ordinary use of this model.
     autoplay_seconds = models.PositiveSmallIntegerField(
         default=0,
-        help_text="0 disables auto-advance. Ignored when there is a single slide.",
+        help_text="0 disables auto-advance. Ignored by the photographic variant.",
     )
 
     class Meta:
@@ -57,8 +74,11 @@ class HeroSlide(OrderedItemModel, TimeStampedModel):
         related_name="+",
     )
 
-    cta_label = models.CharField(max_length=100, blank=True)
-    cta_url = models.CharField(max_length=500, blank=True)
+    # Two actions: a filled primary and an outlined secondary.
+    primary_cta_label = models.CharField(max_length=100, blank=True)
+    primary_cta_url = models.CharField(max_length=500, blank=True)
+    secondary_cta_label = models.CharField(max_length=100, blank=True)
+    secondary_cta_url = models.CharField(max_length=500, blank=True)
 
     class Meta(OrderedItemModel.Meta):
         indexes = [models.Index(fields=["section", "order"])]
