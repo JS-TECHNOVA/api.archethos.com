@@ -16,7 +16,10 @@ Wants=postgresql.service
 
 [Service]
 Type=notify
-User=archethos
+# The VPS's default account. A dedicated service account would isolate this
+# better — `ubuntu` has sudo, so a compromise here lands on an account that can
+# escalate. ProtectHome below is what limits that in the meantime.
+User=ubuntu
 # nginx runs as www-data and has to read static/ and media/. Sharing the group
 # is what makes that possible without world-readable directories.
 Group=www-data
@@ -55,6 +58,9 @@ RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
+# Hides /home entirely from this process. It matters more than usual here: the
+# service runs as `ubuntu`, whose home holds the GitHub deploy key and .pgpass —
+# so the web process cannot read them despite owning them.
 ProtectHome=true
 ReadWritePaths=/var/www/api.archethos.com/media /var/www/api.archethos.com/staticfiles
 

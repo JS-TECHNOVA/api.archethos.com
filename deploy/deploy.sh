@@ -2,7 +2,7 @@
 #
 # Deploy the current main branch.
 #
-#   sudo -u archethos /var/www/api.archethos.com/deploy/deploy.sh
+#   /var/www/api.archethos.com/deploy/deploy.sh          (as ubuntu)
 #
 # Safe to re-run. Every step is idempotent, and the script stops at the first
 # failure rather than half-deploying — a failed migrate must not be followed by

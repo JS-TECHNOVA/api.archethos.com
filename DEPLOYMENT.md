@@ -28,30 +28,36 @@ needs. Without it that migration fails with *"extension is not available"*.
 
 ## 2. App user and directories
 
-The app runs as its own unprivileged user. Its **group is `www-data`** so nginx
-can read `static/` and `media/` without those directories being world-readable.
+The app runs as **`ubuntu`**, the VPS's default account. Its **group must be
+`www-data`** so nginx can read `static/` and `media/` without those directories
+being world-readable.
 
 ```bash
-sudo useradd --system --create-home --home-dir /srv/archethos --shell /bin/bash archethos
-sudo usermod -aG www-data archethos
+sudo usermod -aG www-data ubuntu
 
 sudo mkdir -p /var/www/api.archethos.com
-sudo chown archethos:www-data /srv/archethos /var/www/api.archethos.com
-sudo chmod 750 /srv/archethos /var/www/api.archethos.com
+sudo chown -R ubuntu:www-data /var/www/api.archethos.com
+sudo chmod 750 /var/www/api.archethos.com
 ```
 
-Two locations, on purpose:
+Group membership only applies to new logins, so log out and back in (or
+`newgrp www-data`) before the ownership commands take effect for your shell.
 
-| | |
-|---|---|
-| `/var/www/api.archethos.com` | the code, and the `static/` and `media/` nginx serves |
-| `/srv/archethos` | the user's **home** — deploy key (`.ssh/`) and `.pgpass` |
-
-The secrets stay out of the directory nginx serves from. nginx is configured
-with `alias` on two specific sub-paths rather than a `root`, so nothing else is
-reachable — but if a later change ever adds a `root` or a stray `location /`,
-the difference between "leaked a stylesheet" and "leaked the deploy key" is this
-separation.
+> **A dedicated service account would be better.** `ubuntu` has sudo, so a
+> compromise through the upload endpoint lands on an account that can escalate.
+> The unit sets `ProtectHome=true`, which hides `/home` from the process — so it
+> cannot read the deploy key or `.pgpass` despite owning them — but that is
+> mitigation, not isolation. To harden later:
+>
+> ```bash
+> sudo useradd --system --create-home --home-dir /srv/archethos --shell /bin/bash archethos
+> sudo usermod -aG www-data archethos
+> sudo chown -R ubuntu:www-data /var/www/api.archethos.com
+> sudo sed -i "s/^User=ubuntu$/User=archethos/" /etc/systemd/system/archethos-api.service
+> sudo systemctl daemon-reload && sudo systemctl restart archethos-api
+> ```
+>
+> That account needs **its own** GitHub deploy key, or `deploy.sh` cannot fetch.
 
 ---
 
@@ -91,8 +97,8 @@ The repository is private, so give the server a **read-only deploy key** rather
 than putting a personal token on disk.
 
 ```bash
-sudo -u archethos ssh-keygen -t ed25519 -C "archethos-vps" -f /srv/archethos/.ssh/id_ed25519 -N ""
-sudo -u archethos cat /srv/archethos/.ssh/id_ed25519.pub
+ssh-keygen -t ed25519 -C "archethos-vps" -f ~/.ssh/id_ed25519 -N ""
+cat ~/.ssh/id_ed25519.pub
 ```
 
 Add that public key at **GitHub → repo → Settings → Deploy keys → Add**, leaving
@@ -100,7 +106,7 @@ Add that public key at **GitHub → repo → Settings → Deploy keys → Add**,
 and unambiguously if the key was not accepted:
 
 ```bash
-sudo -u archethos ssh -T git@github.com
+ssh -T git@github.com
 # "Hi JS-TECHNOVA/api.archethos.com! You've successfully authenticated…"
 ```
 
@@ -109,7 +115,7 @@ a directory that is not empty, so clone **into** it:
 
 ```bash
 cd /var/www/api.archethos.com
-sudo -u archethos git clone git@github.com:JS-TECHNOVA/api.archethos.com.git .
+git clone git@github.com:JS-TECHNOVA/api.archethos.com.git .
 ```
 
 If it still refuses because something is in there (an nginx placeholder
@@ -125,9 +131,9 @@ sudo rm -f /var/www/api.archethos.com/index.html
 ## 5. Virtualenv
 
 ```bash
-sudo -u archethos python3.12 -m venv /var/www/api.archethos.com/.venv
-sudo -u archethos /var/www/api.archethos.com/.venv/bin/pip install --upgrade pip
-sudo -u archethos /var/www/api.archethos.com/.venv/bin/pip install -r /var/www/api.archethos.com/requirements/prod.txt
+python3.12 -m venv /var/www/api.archethos.com/.venv
+/var/www/api.archethos.com/.venv/bin/pip install --upgrade pip
+/var/www/api.archethos.com/.venv/bin/pip install -r /var/www/api.archethos.com/requirements/prod.txt
 ```
 
 ---
@@ -135,8 +141,8 @@ sudo -u archethos /var/www/api.archethos.com/.venv/bin/pip install -r /var/www/a
 ## 6. Environment
 
 ```bash
-sudo -u archethos cp /var/www/api.archethos.com/.env.production.example /var/www/api.archethos.com/.env
-sudo -u archethos nano /var/www/api.archethos.com/.env
+cp /var/www/api.archethos.com/.env.production.example /var/www/api.archethos.com/.env
+nano /var/www/api.archethos.com/.env
 sudo chmod 600 /var/www/api.archethos.com/.env
 ```
 
@@ -163,11 +169,11 @@ cd /var/www/api.archethos.com/archethosbackend
 export DJANGO_SETTINGS_MODULE=archethosbackend.settings.production
 V=/var/www/api.archethos.com/.venv/bin/python
 
-sudo -u archethos --preserve-env=DJANGO_SETTINGS_MODULE $V manage.py check --deploy
-sudo -u archethos --preserve-env=DJANGO_SETTINGS_MODULE $V manage.py migrate
-sudo -u archethos --preserve-env=DJANGO_SETTINGS_MODULE $V manage.py collectstatic --no-input
-sudo -u archethos --preserve-env=DJANGO_SETTINGS_MODULE $V manage.py sync_cms_groups
-sudo -u archethos --preserve-env=DJANGO_SETTINGS_MODULE $V manage.py createsuperuser
+$V manage.py check --deploy
+$V manage.py migrate
+$V manage.py collectstatic --no-input
+$V manage.py sync_cms_groups
+$V manage.py createsuperuser
 ```
 
 `migrate` seeds the ten `Page` rows and the four CMS roles. `createsuperuser`
@@ -176,8 +182,8 @@ asks for a username and email — you will be able to sign in with **either**.
 Media directory, writable by the app and readable by nginx:
 
 ```bash
-sudo -u archethos mkdir -p /var/www/api.archethos.com/media/uploads
-sudo chown -R archethos:www-data /var/www/api.archethos.com/media /var/www/api.archethos.com/staticfiles
+mkdir -p /var/www/api.archethos.com/media/uploads
+sudo chown -R ubuntu:www-data /var/www/api.archethos.com/media /var/www/api.archethos.com/staticfiles
 sudo chmod -R 750 /var/www/api.archethos.com/media /var/www/api.archethos.com/staticfiles
 ```
 
@@ -203,7 +209,7 @@ sudo -u www-data curl --unix-socket /run/archethos/gunicorn.sock http://localhos
 Let the deploy script reload the service without a password prompt:
 
 ```bash
-echo 'archethos ALL=(root) NOPASSWD: /usr/bin/systemctl reload archethos-api' \
+echo 'ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl reload archethos-api' \
   | sudo tee /etc/sudoers.d/archethos-deploy
 sudo chmod 440 /etc/sudoers.d/archethos-deploy
 ```
@@ -297,9 +303,9 @@ The database and `media/` are the only irreplaceable things on this box — the
 code is in git and can be re-cloned.
 
 ```bash
-sudo mkdir -p /var/backups/archethos && sudo chown archethos: /var/backups/archethos
+sudo mkdir -p /var/backups/archethos && sudo chown ubuntu: /var/backups/archethos
 
-sudo -u archethos crontab -e
+crontab -e
 ```
 
 ```cron
@@ -310,7 +316,7 @@ sudo -u archethos crontab -e
 0 3 * * 0 tar czf /var/backups/archethos/media-$(date +\%F).tar.gz -C /var/www/api.archethos.com media
 ```
 
-`pg_dump` needs the password — put it in `/srv/archethos/.pgpass` (`chmod 600`)
+`pg_dump` needs the password — put it in `~/.pgpass` (`chmod 600`)
 as `localhost:5432:archethos:archethos:YOUR-PASSWORD`.
 
 > **Copy these off the machine.** A backup on the same disk as the thing it
@@ -323,7 +329,7 @@ as `localhost:5432:archethos:archethos:YOUR-PASSWORD`.
 From then on, a deploy is one command:
 
 ```bash
-sudo -u archethos /var/www/api.archethos.com/deploy/deploy.sh
+/var/www/api.archethos.com/deploy/deploy.sh
 ```
 
 It fetches `main`, installs dependencies, **refuses to continue if a model was
