@@ -2,7 +2,7 @@
 #
 # Deploy the current main branch.
 #
-#   sudo -u archethos /srv/archethos/api/deploy/deploy.sh
+#   sudo -u archethos /var/www/api.archethos.com/deploy/deploy.sh
 #
 # Safe to re-run. Every step is idempotent, and the script stops at the first
 # failure rather than half-deploying — a failed migrate must not be followed by
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-APP_DIR="/srv/archethos/api"
+APP_DIR="/var/www/api.archethos.com"
 VENV="$APP_DIR/.venv"
 MANAGE="$VENV/bin/python $APP_DIR/archethosbackend/manage.py"
 SERVICE="archethos-api"

@@ -35,10 +35,23 @@ can read `static/` and `media/` without those directories being world-readable.
 sudo useradd --system --create-home --home-dir /srv/archethos --shell /bin/bash archethos
 sudo usermod -aG www-data archethos
 
-sudo mkdir -p /srv/archethos/api
-sudo chown archethos:www-data /srv/archethos /srv/archethos/api
-sudo chmod 750 /srv/archethos /srv/archethos/api
+sudo mkdir -p /var/www/api.archethos.com
+sudo chown archethos:www-data /srv/archethos /var/www/api.archethos.com
+sudo chmod 750 /srv/archethos /var/www/api.archethos.com
 ```
+
+Two locations, on purpose:
+
+| | |
+|---|---|
+| `/var/www/api.archethos.com` | the code, and the `static/` and `media/` nginx serves |
+| `/srv/archethos` | the user's **home** — deploy key (`.ssh/`) and `.pgpass` |
+
+The secrets stay out of the directory nginx serves from. nginx is configured
+with `alias` on two specific sub-paths rather than a `root`, so nothing else is
+reachable — but if a later change ever adds a `root` or a stray `location /`,
+the difference between "leaked a stylesheet" and "leaked the deploy key" is this
+separation.
 
 ---
 
@@ -83,10 +96,28 @@ sudo -u archethos cat /srv/archethos/.ssh/id_ed25519.pub
 ```
 
 Add that public key at **GitHub → repo → Settings → Deploy keys → Add**, leaving
-*Allow write access* **unchecked**. Then:
+*Allow write access* **unchecked**. Verify it before cloning — this fails fast
+and unambiguously if the key was not accepted:
 
 ```bash
-sudo -u archethos git clone git@github.com:JS-TECHNOVA/api.archethos.com.git /srv/archethos/api
+sudo -u archethos ssh -T git@github.com
+# "Hi JS-TECHNOVA/api.archethos.com! You've successfully authenticated…"
+```
+
+Then clone. `/var/www/api.archethos.com` already exists, and `git clone` refuses
+a directory that is not empty, so clone **into** it:
+
+```bash
+cd /var/www/api.archethos.com
+sudo -u archethos git clone git@github.com:JS-TECHNOVA/api.archethos.com.git .
+```
+
+If it still refuses because something is in there (an nginx placeholder
+`index.html` is the usual culprit), check what and clear it:
+
+```bash
+ls -la /var/www/api.archethos.com
+sudo rm -f /var/www/api.archethos.com/index.html
 ```
 
 ---
@@ -94,9 +125,9 @@ sudo -u archethos git clone git@github.com:JS-TECHNOVA/api.archethos.com.git /sr
 ## 5. Virtualenv
 
 ```bash
-sudo -u archethos python3.12 -m venv /srv/archethos/api/.venv
-sudo -u archethos /srv/archethos/api/.venv/bin/pip install --upgrade pip
-sudo -u archethos /srv/archethos/api/.venv/bin/pip install -r /srv/archethos/api/requirements/prod.txt
+sudo -u archethos python3.12 -m venv /var/www/api.archethos.com/.venv
+sudo -u archethos /var/www/api.archethos.com/.venv/bin/pip install --upgrade pip
+sudo -u archethos /var/www/api.archethos.com/.venv/bin/pip install -r /var/www/api.archethos.com/requirements/prod.txt
 ```
 
 ---
@@ -104,9 +135,9 @@ sudo -u archethos /srv/archethos/api/.venv/bin/pip install -r /srv/archethos/api
 ## 6. Environment
 
 ```bash
-sudo -u archethos cp /srv/archethos/api/.env.production.example /srv/archethos/api/.env
-sudo -u archethos nano /srv/archethos/api/.env
-sudo chmod 600 /srv/archethos/api/.env
+sudo -u archethos cp /var/www/api.archethos.com/.env.production.example /var/www/api.archethos.com/.env
+sudo -u archethos nano /var/www/api.archethos.com/.env
+sudo chmod 600 /var/www/api.archethos.com/.env
 ```
 
 Two values must be changed before anything else:
@@ -128,9 +159,9 @@ Everything else in the template is already correct for this host.
 ## 7. First run
 
 ```bash
-cd /srv/archethos/api/archethosbackend
+cd /var/www/api.archethos.com/archethosbackend
 export DJANGO_SETTINGS_MODULE=archethosbackend.settings.production
-V=/srv/archethos/api/.venv/bin/python
+V=/var/www/api.archethos.com/.venv/bin/python
 
 sudo -u archethos --preserve-env=DJANGO_SETTINGS_MODULE $V manage.py check --deploy
 sudo -u archethos --preserve-env=DJANGO_SETTINGS_MODULE $V manage.py migrate
@@ -145,9 +176,9 @@ asks for a username and email — you will be able to sign in with **either**.
 Media directory, writable by the app and readable by nginx:
 
 ```bash
-sudo -u archethos mkdir -p /srv/archethos/api/media/uploads
-sudo chown -R archethos:www-data /srv/archethos/api/media /srv/archethos/api/staticfiles
-sudo chmod -R 750 /srv/archethos/api/media /srv/archethos/api/staticfiles
+sudo -u archethos mkdir -p /var/www/api.archethos.com/media/uploads
+sudo chown -R archethos:www-data /var/www/api.archethos.com/media /var/www/api.archethos.com/staticfiles
+sudo chmod -R 750 /var/www/api.archethos.com/media /var/www/api.archethos.com/staticfiles
 ```
 
 ---
@@ -155,7 +186,7 @@ sudo chmod -R 750 /srv/archethos/api/media /srv/archethos/api/staticfiles
 ## 8. gunicorn
 
 ```bash
-sudo cp /srv/archethos/api/deploy/gunicorn.service /etc/systemd/system/archethos-api.service
+sudo cp /var/www/api.archethos.com/deploy/gunicorn.service /etc/systemd/system/archethos-api.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now archethos-api
 systemctl status archethos-api --no-pager
@@ -186,7 +217,7 @@ to resolve — certbot validates over HTTP and will fail otherwise.
 
 ```bash
 sudo mkdir -p /var/www/certbot
-sudo cp /srv/archethos/api/deploy/nginx.conf /etc/nginx/sites-available/api.archethos.com
+sudo cp /var/www/api.archethos.com/deploy/nginx.conf /etc/nginx/sites-available/api.archethos.com
 sudo ln -sf /etc/nginx/sites-available/api.archethos.com /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 ```
@@ -276,7 +307,7 @@ sudo -u archethos crontab -e
 0 2 * * * pg_dump -U archethos -h localhost archethos | gzip > /var/backups/archethos/db-$(date +\%F).sql.gz && find /var/backups/archethos -name 'db-*.sql.gz' -mtime +14 -delete
 
 # Uploaded media, weekly.
-0 3 * * 0 tar czf /var/backups/archethos/media-$(date +\%F).tar.gz -C /srv/archethos/api media
+0 3 * * 0 tar czf /var/backups/archethos/media-$(date +\%F).tar.gz -C /var/www/api.archethos.com media
 ```
 
 `pg_dump` needs the password — put it in `/srv/archethos/.pgpass` (`chmod 600`)
@@ -292,7 +323,7 @@ as `localhost:5432:archethos:archethos:YOUR-PASSWORD`.
 From then on, a deploy is one command:
 
 ```bash
-sudo -u archethos /srv/archethos/api/deploy/deploy.sh
+sudo -u archethos /var/www/api.archethos.com/deploy/deploy.sh
 ```
 
 It fetches `main`, installs dependencies, **refuses to continue if a model was

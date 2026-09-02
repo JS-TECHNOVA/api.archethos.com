@@ -21,7 +21,7 @@ User=archethos
 # is what makes that possible without world-readable directories.
 Group=www-data
 
-WorkingDirectory=/srv/archethos/api/archethosbackend
+WorkingDirectory=/var/www/api.archethos.com/archethosbackend
 Environment="DJANGO_SETTINGS_MODULE=archethosbackend.settings.production"
 Environment="PYTHONUNBUFFERED=1"
 
@@ -30,7 +30,7 @@ Environment="PYTHONUNBUFFERED=1"
 RuntimeDirectory=archethos
 RuntimeDirectoryMode=0750
 
-ExecStart=/srv/archethos/api/.venv/bin/gunicorn \
+ExecStart=/var/www/api.archethos.com/.venv/bin/gunicorn \
     --bind unix:/run/archethos/gunicorn.sock \
     --workers 3 \
     --timeout 60 \
@@ -56,7 +56,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/srv/archethos/api/media /srv/archethos/api/staticfiles
+ReadWritePaths=/var/www/api.archethos.com/media /var/www/api.archethos.com/staticfiles
 
 [Install]
 WantedBy=multi-user.target
