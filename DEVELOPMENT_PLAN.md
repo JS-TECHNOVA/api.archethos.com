@@ -838,8 +838,7 @@ frontend's `src/data/*.js` files.
 | Item | Status |
 |---|---|
 | Production cookie scope (`AUTH_COOKIE_DOMAIN=.archethos.com`) | set; CSRF and session cookies now track it |
-| Rate limiting | only the enquiry endpoint, and it 500s behind a unix socket - `RATELIMIT_IP_META_KEY` and a shared cache both needed |
-| Login throttling | none. `/auth/login/` is unauthenticated and unlimited |
-| Seeding master data from `src/data/*.js` | not written - services, projects, gallery and locations still live only in the frontend |
+| Rate limiting | done. Login (per IP and per account), refresh, password change, enquiries. Rates from env; needs `CACHE_URL` and `RATELIMIT_TRUSTED_IP_HEADER` set in production |
+| Seeding | done — `manage.py seed_site`. **Not** in deploy.sh: it rebuilds page sections wholesale, so re-running would discard an editor's work. Launch-time and staging only |
 | Admin screens for Gallery and Locations | API done, `/admin/content/gallery` and `/admin/content/locations` not built |
 | Cloudflare caching vs `media/replace/` | replace keeps the filename, so a cached image survives it - needs a purge or a checksum query param |

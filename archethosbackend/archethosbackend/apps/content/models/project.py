@@ -41,6 +41,7 @@ class ProjectLayout(models.TextChoices):
     """
 
     FULL = "full", "Full width"
+    WIDE = "wide", "Wide"
     HALF = "half", "Half width"
     PORTRAIT = "portrait", "Portrait"
 

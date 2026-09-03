@@ -4,8 +4,8 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-11 complete · Phase 13 (explicit page models) complete ·
-Phase 12 (audit, hardening) outstanding · 260 tests passing
+**Progress:** Phases 1-11, 13, 14 complete · Phase 12 (audit) outstanding ·
+302 tests passing
 
 **Standing constraints — apply to every phase**
 
@@ -337,7 +337,33 @@ Replaced the generic CMS with one model per page. Structure is code; content is 
 
 **Not done**
 
-- [ ] Seed master data from the frontend's `src/data/*.js` (services, projects, gallery,
-      locations still live only there)
 - [ ] Admin screens for Gallery and Locations (`/admin/content/gallery`, `/locations`) —
       API is done, UI is not
+
+---
+
+## Phase 14 — Seeding and rate limiting `[x] COMPLETE`
+
+**Seed** — `manage.py seed_site`
+
+- [x] `dump.mjs` exports the frontend's `src/data/*.js` to JSON; the seed reads that
+      rather than a hand transcription of 24 captions and 7 project narratives
+- [x] `seed_data/pages.py` carries the copy that lives in the page components
+- [x] 46 media assets, 5 services, 7 projects, 24 gallery items, 6 journal entries,
+      2 locations, 4 figures, Company, and all ten pages
+- [x] Idempotent on natural keys; `--pages-only` leaves master data alone
+- [x] Placeholders stay placeholders: unverified figures seeded as DRAFT, founder
+      left unnamed, location addresses blank, contact details and social links
+      omitted (`PLACEHOLDER_CONTACT`), photography marked as stock
+- [x] Legal pages seeded unpublished — no copy supplied, and not ours to draft
+- [x] Model gaps the real data exposed: `SourceType.EXTERNAL`, `ProjectLayout.WIDE`
+
+**Rate limiting**
+
+- [x] `client_ip` replaces the stock resolver, which raised behind a unix socket
+      and was 500ing every enquiry submission in production
+- [x] Trusted header is configuration; Cloudflare needs `HTTP_CF_CONNECTING_IP`
+- [x] Login limited per IP **and** per account; only failures count
+- [x] Refresh and password change limited
+- [x] `CACHE_URL` — production refuses to boot on a per-process cache
+- [x] Every rate an env var; `django_ratelimit` installed so its checks run

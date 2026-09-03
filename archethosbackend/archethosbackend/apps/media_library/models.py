@@ -38,8 +38,18 @@ class MediaType(models.TextChoices):
 
 
 class SourceType(models.TextChoices):
+    """How the asset came to exist.
+
+    EXTERNAL covers imagery the studio references but does not host — stock
+    photography standing in for its own work, or a photographer's CDN. It is a
+    real state, not a placeholder for one: the live site runs on licensed stock
+    today, and a library that could not represent that would simply be wrong
+    about what the site is showing.
+    """
+
     UPLOAD = "UPLOAD", "Uploaded file"
     YOUTUBE = "YOUTUBE", "YouTube"
+    EXTERNAL = "EXTERNAL", "External URL"
 
 
 class MediaLocation(models.TextChoices):
@@ -145,15 +155,18 @@ class MediaAsset(TimeStampedModel):
             models.Index(fields=["source_type"]),
         ]
         constraints = [
-            # An UPLOAD without a file, or a YOUTUBE without a URL, is a broken
-            # row that would render as a missing image on the live site. Reject
-            # it at the database level so no code path can create one.
+            # An UPLOAD without a file, or a YOUTUBE or EXTERNAL without a
+            # URL, is a broken row that would render as a missing image on the
+            # live site. Reject it at the database level so no code path can
+            # create one.
             models.CheckConstraint(
                 condition=(
                     models.Q(source_type=SourceType.UPLOAD) & ~models.Q(file="")
                 )
                 | (
-                    models.Q(source_type=SourceType.YOUTUBE)
+                    models.Q(
+                        source_type__in=[SourceType.YOUTUBE, SourceType.EXTERNAL]
+                    )
                     & ~models.Q(external_url="")
                 ),
                 name="media_asset_source_has_payload",
@@ -167,10 +180,11 @@ class MediaAsset(TimeStampedModel):
     def relative_path(self):
         """What the API exposes and what the frontend prepends its CDN base to.
 
-        Uploads yield `/media/uploads/<uuid>-name.webp`; YouTube assets yield the
-        external URL, which is already absolute and not ours to rewrite.
+        Uploads yield `/media/uploads/<uuid>-name.webp`. YouTube and external
+        assets yield their URL, which is already absolute and not ours to
+        rewrite — the frontend must not prepend a CDN base to it.
         """
-        if self.source_type == SourceType.YOUTUBE:
+        if self.source_type != SourceType.UPLOAD:
             return self.external_url
         if not self.file:
             return ""
