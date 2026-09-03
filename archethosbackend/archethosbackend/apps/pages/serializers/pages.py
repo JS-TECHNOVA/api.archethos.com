@@ -70,8 +70,12 @@ SEO = [
 META = ["id", "is_published", "missing_sections", "updated_at"]
 
 
-class BasePageFields(PageSerializer):
-    """The publish state and SEO block shared by all ten pages."""
+class CommonPageFields(PageSerializer):
+    """The publish state and SEO block shared by all ten pages.
+
+    A mixin, not a base page: every page below is its own serializer for its own
+    model, and nothing here makes a page generic.
+    """
 
     og_image = MediaReferenceField()
     #: Which required sections are still empty — what the admin banner reads.
@@ -91,7 +95,7 @@ class BasePageFields(PageSerializer):
         return data
 
 
-class HomePageSerializer(BasePageFields):
+class HomePageSerializer(CommonPageFields):
     hero = HeroSectionSerializer(required=False)
     intro = HomeIntroSectionSerializer(required=False)
     stats = StatsSectionSerializer(required=False)
@@ -112,7 +116,7 @@ class HomePageSerializer(BasePageFields):
         ]
 
 
-class AboutPageSerializer(BasePageFields):
+class AboutPageSerializer(CommonPageFields):
     hero = HeroSectionSerializer(required=False)
     story = StudioStorySectionSerializer(required=False)
     mission_vision = MissionVisionSectionSerializer(required=False)
@@ -130,7 +134,7 @@ class AboutPageSerializer(BasePageFields):
         ]
 
 
-class ServicesPageSerializer(BasePageFields):
+class ServicesPageSerializer(CommonPageFields):
     hero = HeroSectionSerializer(required=False)
     index = ServiceIndexSectionSerializer(required=False)
     process = ProcessSectionSerializer(required=False)
@@ -141,7 +145,7 @@ class ServicesPageSerializer(BasePageFields):
         fields = META + SEO + ["hero", "index", "process", "cta"]
 
 
-class ProjectsPageSerializer(BasePageFields):
+class ProjectsPageSerializer(CommonPageFields):
     hero = HeroSectionSerializer(required=False)
     index = ProjectIndexSectionSerializer(required=False)
     cta = CTASectionSerializer(required=False)
@@ -151,7 +155,7 @@ class ProjectsPageSerializer(BasePageFields):
         fields = META + SEO + ["hero", "index", "cta"]
 
 
-class GalleryPageSerializer(BasePageFields):
+class GalleryPageSerializer(CommonPageFields):
     hero = HeroSectionSerializer(required=False)
     grid = GalleryGridSectionSerializer(required=False)
     cta = CTASectionSerializer(required=False)
@@ -161,7 +165,7 @@ class GalleryPageSerializer(BasePageFields):
         fields = META + SEO + ["hero", "grid", "cta"]
 
 
-class JournalPageSerializer(BasePageFields):
+class JournalPageSerializer(CommonPageFields):
     hero = HeroSectionSerializer(required=False)
     featured = JournalFeaturedSectionSerializer(required=False)
     list = JournalListSectionSerializer(required=False)
@@ -172,7 +176,7 @@ class JournalPageSerializer(BasePageFields):
         fields = META + SEO + ["hero", "featured", "list", "cta"]
 
 
-class LocationsPageSerializer(BasePageFields):
+class LocationsPageSerializer(CommonPageFields):
     hero = HeroSectionSerializer(required=False)
     locations = LocationsListSectionSerializer(required=False)
     visiting = VisitingSectionSerializer(required=False)
@@ -183,7 +187,7 @@ class LocationsPageSerializer(BasePageFields):
         fields = META + SEO + ["hero", "locations", "visiting", "cta"]
 
 
-class ContactPageSerializer(BasePageFields):
+class ContactPageSerializer(CommonPageFields):
     hero = HeroSectionSerializer(required=False)
     form = ContactFormSectionSerializer(required=False)
     details = ContactDetailsSectionSerializer(required=False)
@@ -195,7 +199,7 @@ class ContactPageSerializer(BasePageFields):
         fields = META + SEO + ["hero", "form", "details", "what_happens", "cta"]
 
 
-class PrivacyPageSerializer(BasePageFields):
+class PrivacyPageSerializer(CommonPageFields):
     body = RichTextSectionSerializer(required=False)
 
     class Meta:
@@ -203,7 +207,7 @@ class PrivacyPageSerializer(BasePageFields):
         fields = META + SEO + ["body"]
 
 
-class TermsPageSerializer(BasePageFields):
+class TermsPageSerializer(CommonPageFields):
     body = RichTextSectionSerializer(required=False)
 
     class Meta:

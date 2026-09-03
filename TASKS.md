@@ -4,7 +4,8 @@ Architecture reference: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 
-**Progress:** Phases 1-11 complete · Phase 12 (audit, hardening) next · 269 tests passing
+**Progress:** Phases 1-11 complete · Phase 13 (explicit page models) complete ·
+Phase 12 (audit, hardening) outstanding · 260 tests passing
 
 **Standing constraints — apply to every phase**
 
@@ -13,9 +14,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked
 - `order` is display-only and appears in **no** constraint. (plan §2.3)
 - One publish flag: `status` + `published_at`. No `is_active` / `is_published`. (plan §2.6)
 - Public serializers are independent classes, never subclasses of admin ones. (plan §12)
-- Never modify the Next.js UI repo. Read it for reference only.
-- All master content lives in the single `content` app (Project, Service, BlogPost,
-  FAQ, Counter), split into modules under `content/models/`. `Company` lives in `pages`.
+- Structure is code, content is data. A page is a model; its fields are its render order.
+  Never reintroduce a generic page/section/registry layer. (plan §2.2)
+- Master data lives in `content` (Project, Service, BlogPost, FAQ, Counter, GalleryItem,
+  Location). Sections live in `pages`, beside the page that renders them. `Company` too.
+- A section references master data through an item model and never copies its fields. (plan §5.5)
+- The website frontend and the page models are changed together. The admin consumes the API.
 
 ---
 
@@ -197,138 +201,44 @@ _None._
   `source="*"`; as `SerializerMethodField`s they needed a `get_<name>` method on
   every serializer, which was the duplication they existed to remove.
 
-## Phase 7 — Sections `[x] COMPLETE`
+## Phases 7-9 — Generic sections and page composition `[x] SUPERSEDED`
 
-- [x] Read-only survey of the Next.js UI to derive real fields
-- [x] `Section` concrete MTI base: `section_type` (set in `save()`, `editable=False`),
-      `internal_label`
-- [x] `SectionType` choices - one value per frontend component
-- [x] `HeroSection` **+ `HeroSlide`** (the live hero is a 3-frame slider, not a
-      single headline - the UI survey caught this)
-- [x] `IntroSection`
-- [x] `CounterSection`
-- [x] `FeaturedProjectsSection`
-- [x] `ServicesSection`
-- [x] `GallerySection` (GRID / MASONRY / SLIDER)
-- [x] `FAQSection`
-- [x] `CTASection`
-- [x] `ContactInfoSection`
-- [x] `RichTextSection` (carries `/legal/privacy` and `/legal/terms`)
-- [x] `SECTION_REGISTRY` with `SectionSpec` + `ItemSpec`
-- [x] Admin section URLs **generated from the registry** - one route set serves
-      all 10 types via `<segment>`
-- [x] `GET /admin/sections/` - type-agnostic browser, one query
-- [x] `GET /admin/sections/types/` - the registry as data, so the admin menu
-      cannot drift from the backend
-- [x] Per-type CRUD
-- [x] Tests: `section_type` cannot be forged; permissions are per concrete type
+Built and shipped: `Section` MTI base, `SECTION_REGISTRY`, per-type CRUD, section items with
+atomic reorder, `Page` + `PageSection` composition with visibility and ordering.
+
+**Replaced in Phase 13.** The generic layer worked but was the wrong shape for a nine-page
+corporate site: the schema described a page builder rather than the website, and the frontend
+needed a registry to render it. See Phase 13 below.
 
 ---
 
-## Phase 8 — Section items + reorder `[x] COMPLETE`
+## Phase 10 — Public page API `[x] COMPLETE, rebuilt in Phase 13`
 
-- [x] `FAQSectionItem` · `CounterSectionItem` · `FeaturedProjectItem`
-      (+ `display_variant`) · `ServiceSectionItem` (+ `label_override`) ·
-      `GallerySectionItem` (+ `caption`) · `HeroSlide`
-- [x] `UniqueConstraint(section, content)` on each; **no** constraint on `order`
-- [x] Generic item list / add / update / remove, registry-driven
-- [x] `SectionItemReorderAPIView` - ownership checked, duplicate and unknown ids
-      rejected, then `bulk_update` in one transaction
-- [x] Item routes generated for every type that declares items
-- [x] Parent-derived permissions (`sections.change_faqsection`)
-- [x] Detail includes items; list stays light with `items_count`
-- [x] Tests: reorder atomicity, duplicate content rejected, PROTECT on master content
-
-**Phases 7-8 notes**
-
-- **The hero is a slider.** The UI survey found three frames each with their own
-  `eyebrow`, `headingLines`, `lead` and media. A single-headline hero model could
-  not have expressed it. `heading` is stored as text with one line per row and
-  split into `heading_lines` by the serializer - the breaks are a typographic
-  decision the editor makes in a textarea.
-- One route set serves all 10 section types. Adding a type = model + serializers +
-  registry entry; **no new URL, view or test file**.
-- Several tests iterate `SECTION_REGISTRY`, so a newly registered type is covered
-  the moment it is added. One asserts every `SectionType` value is registered -
-  an unregistered type would 404 on its own routes.
-- Public serializers filter draft master content out of every section, and none of
-  them expose `internal_label` (asserted for all 10).
-- **Deferred to Phase 9:** section `usage` endpoint and `used_by_count`. Both need
-  `PageSection`, which does not exist yet - written a phase early and removed
-  rather than faked.
-- More section types exist in the UI than are modelled (design-build, vastu-preview,
-  philosophy, mission-vision, founder-message, studio-story, service-process,
-  location). Most are `intro`- or `rich_text`-shaped; add them as needed.
-
----
-
-## Phase 9 — Pages + composition `[x] COMPLETE`
-
-- [x] `Page` - name, slug (unique), `is_published`, SEO
-- [x] `PageSection` - page, section, `section_key`, `order`, `is_visible`
-- [x] `UniqueConstraint(page, section_key)` - and **no** `unique(page, order)` (plan §2.3)
-- [x] Page CRUD (list light + paginated, detail with composition)
-- [x] `GET /admin/pages/{id}/sections/` - list composition
-- [x] `POST /admin/pages/{id}/sections/` - attach a section
-- [x] `PATCH /admin/pages/{id}/sections/{ps_id}/` - key / visibility / order
-- [x] `DELETE /admin/pages/{id}/sections/{ps_id}/` - detach; **must not delete the Section**
-- [x] `PATCH /admin/pages/{id}/sections/reorder/` - atomic
-- [x] `GET /admin/sections/{type}/{id}/usage/` - which pages use this section
-- [x] Seed the ten `Page` rows matching the frontend routes (plan §18)
-- [x] Tests: same section type twice on one page via different keys; duplicate key rejected;
-      detaching leaves the section intact; reorder atomicity
-- [x] `manage.py sync_cms_groups`
-
----
-
-**Phase 9 notes**
-
-- `Page` uses `status` / `published_at` like every content model, not a bespoke
-  `is_published`. One meaning of "live" across the system (plan §2.6).
-- **Bug caught:** `legal/privacy` is a real frontend route, but `SlugField` forbids
-  `/`. The seed migration created it anyway because `RunPython` skips validation,
-  so the API would have rejected editing a row that already existed. `slug` is now
-  a validated `CharField`; Phase 10's public route must use `<path:slug>`.
-- The 10 seeded pages start as DRAFT: a page with no sections has nothing to
-  render, so publishing is deliberate.
-- Tested and working: the same section on several pages, and the same section
-  *type* twice on one page under different keys - the two things the old
-  fixed-slot design could not express at all.
-- `is_visible` is per placement, so hiding a shared CTA on one page leaves it
-  visible elsewhere.
-- Section `usage` and `used_by_count` restored now that `PageSection` exists.
-- `Company` inject fields are superuser-only, tested both ways; JSON fields have
-  shape validators.
-
-## Phase 10 — Public aggregate API `[x] COMPLETE`
-
-- [x] `GET /api/v1/public/pages/{slug}/`
-- [x] Batched per-type resolution driven by `SECTION_REGISTRY.public_queryset`
-      (**not** `InheritanceManager`) - plan §13
-- [x] Only `is_visible=True`, ordered by `PageSection.order`
-- [x] Each entry emits `id` / `key` / `type` / `data`; `internal_label` never exposed
-- [x] Unpublished page -> 404; unknown slug -> 404
-- [x] ETag + `Cache-Control` from max `updated_at`
-- [x] **`assertNumQueries` test** pinning the query count so it cannot silently regress
-- [x] Test: query count is flat as gallery items scale from 4 to 40
-- [x] Test: draft master content never surfaces inside a section
+- [x] `GET /api/v1/public/pages/{route}/` — one request renders a whole route
+- [x] `GET /api/v1/public/pages/` — which routes are live, for sitemaps and static builds
+- [x] Sections as named keys; master data inlined, not join rows
+- [x] Admin bookkeeping stripped from the public payload
+- [x] Unpublished page -> 404, indistinguishable from one that does not exist
+- [x] Query plan derived from the models in `pages/selectors.py`
+- [x] **Query-count test** pinning flatness so it cannot silently regress
 
 ---
 
 **Phase 10 notes**
 
-- **Measured: 16 queries** for an 8-section homepage, not the 18 estimated.
-  The shape is 2 setup + 1 per simple type + 2 per collection type. Three CTAs on
-  one page cost **one** batch, not three. Pinned with `assertNumQueries`.
-- Flatness proven directly: a page with 40 gallery images, 30 FAQs and 25 projects
-  costs the same 16 queries as one with 4/3/3.
-- `InheritanceManager` was rejected for this: its all-subclass LEFT JOIN is slower
-  *and* cannot apply per-type prefetches, which is what makes batching work.
-- Unresolvable section types are logged and skipped rather than 500ing the page.
-- ETag covers the whole graph, so editing a shared CTA invalidates every page
-  composing it. Verified 304 over real HTTP.
-- Verified live: `/pages/legal/privacy/` resolves through `<path:slug>`; draft
-  pages 404; CORS headers correct for `localhost:3000`.
+- The original implementation batched one query per distinct section type through
+  `SECTION_REGISTRY.public_queryset`, because MTI made section rows polymorphic.
+  Phase 13 removed the polymorphism, so the batching went with it: sections are now
+  `OneToOneField`s and arrive with the page in **one** query.
+- **11 queries** for the eleven-section home page. Flat: thirty gallery images cost
+  the same as three, pinned by `QueryCountTests`.
+- The N+1 that survived the first cut: joining an item's master record leaves *that
+  record's* media unfetched, so thirty gallery items cost thirty extra queries. The
+  selector joins two levels for exactly that reason.
+- ETag and `Cache-Control` were dropped with the rebuild — worth reinstating, but
+  Cloudflare now sits in front and is the more important cache to think about.
+
+---
 
 ## Phase 11 — Search, enquiries, company `[x] COMPLETE`
 
@@ -386,6 +296,48 @@ _None._
 - [ ] `seed_demo_data` management command
 - [ ] Production settings pass + full security checklist (plan §15)
 - [ ] `README.md`: setup, env vars, CORS/CSRF for Next.js, auth flow,
-      `credentials: "include"`, section registry contract
+      `credentials: "include"`, the page API contract
 - [ ] Deployment notes (gunicorn, static/media serving, migrations)
 - [ ] Final full test run
+
+---
+
+## Phase 13 — Explicit page models `[x] COMPLETE`
+
+Replaced the generic CMS with one model per page. Structure is code; content is data.
+
+**Backend**
+
+- [x] Ten page models, each a singleton with SEO, `is_published`, `required_sections`
+- [x] Sections as plain tables: shared (Hero, CTA, Process, RichText) plus per-page
+- [x] Item models linking sections to master data, `unique(section, record)`
+- [x] `GalleryItem` and `Location` master models, lifted out of the frontend data files
+- [x] `Service` completed: number, title_lines, hero_heading, hero/index images,
+      detail sections, process steps, gallery
+- [x] `Project` completed: category, layout, five narrative blocks, materials,
+      kind-discriminated media (gallery / floor plan / drawing)
+- [x] One endpoint per page, `GET` + `PATCH`, nested section writes in one transaction
+- [x] Item order is array order — no `order` on the wire, no reorder endpoints
+- [x] Public payload inlines master data, drops admin bookkeeping, 404s while unpublished
+- [x] `pages/selectors.py` derives the query plan from the models; joins master data
+      **and its media**, two levels deep
+- [x] `manage.py ensure_pages`, wired into `deploy.sh`
+- [x] Deleted: `sections` app, `Page`, `PageSection`, `SectionType`, `SECTION_REGISTRY`,
+      section CRUD and reorder routes, `section_type` / `section_key` everywhere
+- [x] Tests: structure invariants, nested writes, publish gating, public visibility,
+      and a query-count test proving a page read stays flat as content grows
+
+**Frontend**
+
+- [x] `Pages` menu listing the ten routes; one form per page, sections in render order
+- [x] Explicit page composers — no `sections.map()`, no registry
+- [x] `RecordPicker` for master-data sections: choose and order, never edit
+- [x] Deleted: `components/sections/registry.js`, `section-renderer.jsx`,
+      the hero CRUD screen, the runtime section-type menu lookup
+
+**Not done**
+
+- [ ] Seed master data from the frontend's `src/data/*.js` (services, projects, gallery,
+      locations still live only there)
+- [ ] Admin screens for Gallery and Locations (`/admin/content/gallery`, `/locations`) —
+      API is done, UI is not
