@@ -23,9 +23,25 @@ from archethosbackend.apps.api.generics import (
 from archethosbackend.apps.api.permissions import HasModelPermission
 from archethosbackend.apps.core.models import PublishStatus
 
-from .models import FAQ, BlogCategory, BlogPost, Counter, Project, ProjectGalleryItem, Service
+from .models import (
+    FAQ,
+    BlogCategory,
+    BlogPost,
+    Counter,
+    GalleryItem,
+    Location,
+    Project,
+    ProjectGalleryItem,
+    Service,
+)
 from .serializers import (
     BlogCategoryDetailSerializer,
+    GalleryItemDetailSerializer,
+    GalleryItemListSerializer,
+    GalleryItemWriteSerializer,
+    LocationDetailSerializer,
+    LocationListSerializer,
+    LocationWriteSerializer,
     BlogCategoryListSerializer,
     BlogCategoryWriteSerializer,
     BlogPostDetailSerializer,
@@ -60,7 +76,7 @@ DEFAULT_ORDERING = ["-created_at", "-id"]
 
 class ServiceListCreateAPIView(AdminListCreateAPIView):
     ordering = ["order", "title", "id"]
-    queryset = Service.objects.select_related("featured_image", "icon")
+    queryset = Service.objects.select_related("hero_image", "index_image", "icon")
     list_serializer_class = ServiceListSerializer
     write_serializer_class = ServiceWriteSerializer
     filterset_fields = ["status"]
@@ -77,7 +93,9 @@ class ServiceListCreateAPIView(AdminListCreateAPIView):
 
 
 class ServiceDetailAPIView(AdminRetrieveUpdateDestroyAPIView):
-    queryset = Service.objects.select_related("featured_image", "icon", "og_image")
+    queryset = Service.objects.select_related(
+        "hero_image", "index_image", "icon", "og_image"
+    ).prefetch_related("detail_sections__image", "process_steps", "gallery_items__media")
     detail_serializer_class = ServiceDetailSerializer
     write_serializer_class = ServiceWriteSerializer
 
@@ -110,7 +128,7 @@ class ProjectFilterSet(django_filters.FilterSet):
 class ProjectListCreateAPIView(AdminListCreateAPIView):
     ordering = DEFAULT_ORDERING
     queryset = (
-        Project.objects.select_related("featured_image")
+        Project.objects.select_related("cover_image")
         .annotate(gallery_count=Count("gallery_items", distinct=True))
     )
     list_serializer_class = ProjectListSerializer
@@ -129,7 +147,7 @@ class ProjectListCreateAPIView(AdminListCreateAPIView):
 
 
 class ProjectDetailAPIView(AdminRetrieveUpdateDestroyAPIView):
-    queryset = Project.objects.select_related("featured_image", "og_image").prefetch_related(
+    queryset = Project.objects.select_related("cover_image", "og_image").prefetch_related(
         "services",
         Prefetch(
             "gallery_items",
@@ -457,5 +475,98 @@ class CounterDetailAPIView(AdminRetrieveUpdateDestroyAPIView):
         return super().patch(request, *args, **kwargs)
 
     @extend_schema(tags=["admin:counters"], summary="Delete a counter")
+    def delete(self, request, *args, **kwargs):
+        return super().delete(request, *args, **kwargs)
+
+
+# ─── Gallery items ───────────────────────────────────────────────────────────
+
+
+class GalleryItemListCreateAPIView(AdminListCreateAPIView):
+    ordering = DEFAULT_ORDERING
+    queryset = GalleryItem.objects.select_related("image")
+    list_serializer_class = GalleryItemListSerializer
+    write_serializer_class = GalleryItemWriteSerializer
+    filterset_fields = ["status", "category"]
+    search_fields = ["title", "caption"]
+    ordering_fields = ["created_at", "updated_at", "title", "category", "status"]
+
+    @extend_schema(tags=["admin:gallery"], summary="List gallery items")
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @extend_schema(tags=["admin:gallery"], summary="Create a gallery item")
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
+
+class GalleryItemDetailAPIView(AdminRetrieveUpdateDestroyAPIView):
+    queryset = GalleryItem.objects.select_related("image")
+    detail_serializer_class = GalleryItemDetailSerializer
+    write_serializer_class = GalleryItemWriteSerializer
+
+    @extend_schema(tags=["admin:gallery"], summary="Retrieve a gallery item")
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @extend_schema(tags=["admin:gallery"], summary="Update a gallery item")
+    def patch(self, request, *args, **kwargs):
+        return super().patch(request, *args, **kwargs)
+
+    @extend_schema(
+        tags=["admin:gallery"],
+        summary="Delete a gallery item",
+        description=(
+            "Refused with 409 while any section still lists it — the sections "
+            "are named in the error."
+        ),
+    )
+    def delete(self, request, *args, **kwargs):
+        return super().delete(request, *args, **kwargs)
+
+
+# ─── Locations ───────────────────────────────────────────────────────────────
+
+
+class LocationListCreateAPIView(AdminListCreateAPIView):
+    ordering = ["city"]
+    queryset = Location.objects.select_related("image")
+    list_serializer_class = LocationListSerializer
+    write_serializer_class = LocationWriteSerializer
+    filterset_fields = ["status"]
+    search_fields = ["city", "state", "blurb"]
+    ordering_fields = ["city", "created_at", "updated_at", "status"]
+
+    @extend_schema(tags=["admin:locations"], summary="List locations")
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @extend_schema(tags=["admin:locations"], summary="Create a location")
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
+
+class LocationDetailAPIView(AdminRetrieveUpdateDestroyAPIView):
+    queryset = Location.objects.select_related("image")
+    detail_serializer_class = LocationDetailSerializer
+    write_serializer_class = LocationWriteSerializer
+
+    @extend_schema(tags=["admin:locations"], summary="Retrieve a location")
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @extend_schema(
+        tags=["admin:locations"],
+        summary="Update a location",
+        description=(
+            "Address, phone, email and map URL are the studio's to supply. Leave "
+            "them blank rather than filling them with placeholder values — the "
+            "frontend omits an empty field and prints whatever is here."
+        ),
+    )
+    def patch(self, request, *args, **kwargs):
+        return super().patch(request, *args, **kwargs)
+
+    @extend_schema(tags=["admin:locations"], summary="Delete a location")
     def delete(self, request, *args, **kwargs):
         return super().delete(request, *args, **kwargs)

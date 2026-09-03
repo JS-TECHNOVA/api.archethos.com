@@ -15,9 +15,21 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 
-from ..content.models import FAQ, BlogCategory, BlogPost, Counter, Project, ProjectGalleryItem, Service
+from ..content.models import (
+    FAQ,
+    BlogCategory,
+    BlogPost,
+    Counter,
+    GalleryItem,
+    Location,
+    Project,
+    ProjectGalleryItem,
+    Service,
+)
 from .serializers import (
     PublicBlogCategorySerializer,
+    PublicGalleryItemSerializer,
+    PublicLocationSerializer,
     PublicBlogPostDetailSerializer,
     PublicBlogPostSerializer,
     PublicCounterSerializer,
@@ -60,7 +72,7 @@ class PublicProjectListAPIView(PublicAPIView, generics.ListAPIView):
     def get_queryset(self):
         return (
             Project.objects.live()
-            .select_related("featured_image")
+            .select_related("cover_image")
             .distinct()
         )
 
@@ -75,7 +87,7 @@ class PublicProjectDetailAPIView(PublicAPIView, generics.RetrieveAPIView):
     def get_queryset(self):
         return (
             Project.objects.live()
-            .select_related("featured_image", "og_image")
+            .select_related("cover_image", "og_image")
             .prefetch_related(
                 "services",
                 Prefetch(
@@ -100,7 +112,7 @@ class PublicServiceListAPIView(PublicAPIView, generics.ListAPIView):
     ordering_fields = ["order", "title", "published_at"]
 
     def get_queryset(self):
-        return Service.objects.live().select_related("featured_image", "icon")
+        return Service.objects.live().select_related("index_image", "icon")
 
     @extend_schema(tags=["public"], summary="List published services")
     def get(self, request, *args, **kwargs):
@@ -112,7 +124,7 @@ class PublicServiceDetailAPIView(PublicAPIView, generics.RetrieveAPIView):
 
     def get_queryset(self):
         return Service.objects.live().select_related(
-            "featured_image", "icon", "og_image"
+            "hero_image", "index_image", "icon", "og_image"
         )
 
     @extend_schema(tags=["public"], summary="Retrieve a published service by slug")
@@ -195,5 +207,30 @@ class PublicCounterListAPIView(PublicAPIView, generics.ListAPIView):
         return Counter.objects.live()
 
     @extend_schema(tags=["public"], summary="List published counters")
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
+class PublicGalleryItemListAPIView(PublicAPIView, generics.ListAPIView):
+    ordering = ["-created_at", "-id"]
+    serializer_class = PublicGalleryItemSerializer
+    filterset_fields = ["category"]
+
+    def get_queryset(self):
+        return GalleryItem.objects.live().select_related("image")
+
+    @extend_schema(tags=["public"], summary="List published gallery items")
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
+class PublicLocationListAPIView(PublicAPIView, generics.ListAPIView):
+    ordering = ["city"]
+    serializer_class = PublicLocationSerializer
+
+    def get_queryset(self):
+        return Location.objects.live().select_related("image")
+
+    @extend_schema(tags=["public"], summary="List published locations")
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)

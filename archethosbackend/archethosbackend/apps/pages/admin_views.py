@@ -1,253 +1,146 @@
 """
-Page composition admin API.
+Admin routes for pages and site settings.
 
-Class-based views only (plan §2.8). Attaching, detaching and reordering sections
-are separate view classes rather than router actions.
+One endpoint per page, addressed by its public route:
+
+    GET   /api/v1/admin/pages/home/     the whole page, every section
+    PATCH /api/v1/admin/pages/home/     write back whatever changed
+
+There is no create and no delete. The site has ten pages, they are declared in
+code, and `ensure_pages` makes the rows — so a page cannot be added or removed
+through the API any more than a database table can.
 """
 
-from django.db import transaction
-from django.db.models import Count, Prefetch
+from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema
-from rest_framework import generics, status
+from rest_framework import status
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from archethosbackend.apps.api.generics import (
-    AdminListCreateAPIView,
-    AdminRetrieveUpdateDestroyAPIView,
-    AdminRetrieveUpdateAPIView,
-)
+from archethosbackend.apps.api.generics import AdminRetrieveUpdateAPIView
 from archethosbackend.apps.api.permissions import HasModelPermission
 
-from .models import Company, Page, PageSection
-from .serializers import (
-    CompanySerializer,
-    CompanyWriteSerializer,
-    PageDetailSerializer,
-    PageListSerializer,
-    PageSectionSerializer,
-    PageSectionWriteSerializer,
-    PageWriteSerializer,
+from .models import ORDERED_PAGES, Company
+from .selectors import load_page
+from .serializers.company import CompanySerializer, CompanyWriteSerializer
+from .serializers.pages import PAGE_SERIALIZERS
+
+# Every route in ORDERED_PAGES must have a serializer, or a page would 404 with
+# no clue why. Checked at import so it fails on boot rather than in a request.
+assert set(ORDERED_PAGES) == set(PAGE_SERIALIZERS), (
+    "ORDERED_PAGES and PAGE_SERIALIZERS disagree: "
+    f"{set(ORDERED_PAGES) ^ set(PAGE_SERIALIZERS)}"
 )
 
 
-# ─── Pages ───────────────────────────────────────────────────────────────────
+class PageListAPIView(APIView):
+    """The admin's Pages menu (§14).
+
+    Returns the ten pages in navigation order with just enough to render the
+    list: route, name, whether it is live and what is stopping it.
+    """
+
+    permission_classes = [IsAuthenticated]
+    envelope_message = "Pages retrieved"
+
+    @extend_schema(tags=["admin:pages"], summary="List the site's pages", responses={200: None})
+    def get(self, request):
+        rows = []
+        for route, model in ORDERED_PAGES.items():
+            if not request.user.has_perm(
+                f"{model._meta.app_label}.view_{model._meta.model_name}"
+            ):
+                continue
+
+            page = model.objects.first()
+            rows.append(
+                {
+                    "route": route,
+                    "name": model._meta.verbose_name,
+                    "sections": list(model.required_sections),
+                    "is_published": bool(page and page.is_published),
+                    "missing_sections": page.missing_sections() if page else None,
+                    "updated_at": page.updated_at if page else None,
+                }
+            )
+        return Response(rows)
 
 
-class PageListCreateAPIView(AdminListCreateAPIView):
-    ordering = ["name", "id"]
-    queryset = Page.objects.annotate(
-        sections_count=Count("page_sections", distinct=True)
-    )
-    list_serializer_class = PageListSerializer
-    write_serializer_class = PageWriteSerializer
-    filterset_fields = ["status"]
-    search_fields = ["name", "slug"]
-    ordering_fields = ["name", "slug", "status", "updated_at"]
+class PageDetailAPIView(APIView):
+    """Read or write one page, sections and all.
 
-    @extend_schema(tags=["admin:pages"], summary="List pages")
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
-
-    @extend_schema(tags=["admin:pages"], summary="Create a page")
-    def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
-
-
-class PageDetailAPIView(AdminRetrieveUpdateDestroyAPIView):
-    queryset = Page.objects.select_related("og_image").prefetch_related(
-        Prefetch(
-            "page_sections",
-            queryset=PageSection.objects.select_related("section"),
-        )
-    )
-    detail_serializer_class = PageDetailSerializer
-    write_serializer_class = PageWriteSerializer
-
-    @extend_schema(
-        tags=["admin:pages"],
-        summary="Retrieve a page with its composition",
-    )
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
-
-    @extend_schema(tags=["admin:pages"], summary="Update a page")
-    def patch(self, request, *args, **kwargs):
-        return super().patch(request, *args, **kwargs)
-
-    @extend_schema(
-        tags=["admin:pages"],
-        summary="Delete a page",
-        description=(
-            "Deletes the page and its composition rows. The sections themselves "
-            "are PROTECTed and survive, since they may be used by other pages."
-        ),
-    )
-    def delete(self, request, *args, **kwargs):
-        return super().delete(request, *args, **kwargs)
-
-
-# ─── Composition ─────────────────────────────────────────────────────────────
-
-
-class PageCompositionMixin:
-    """Permissions derive from Page.
-
-    "May edit pages" is the real mental model; a separate add/change/delete
-    triple for PageSection would clutter the group picker without expressing
-    anything an administrator would think to grant on its own.
+    A PATCH is one transaction: either every section in the payload is written
+    or none is, so a half-saved page is not a state the site can be left in.
     """
 
     permission_classes = [IsAuthenticated, HasModelPermission]
-    queryset = PageSection.objects.none()  # lets spectacular introspect the model
+    envelope_message = "Page retrieved"
 
-    def get_page(self):
-        return generics.get_object_or_404(Page, pk=self.kwargs["pk"])
-
-
-class PageSectionListCreateAPIView(PageCompositionMixin, AdminListCreateAPIView):
-    required_permissions = ["pages.change_page"]
-    list_serializer_class = PageSectionSerializer
-    write_serializer_class = PageSectionWriteSerializer
-    #: A page's composition is short and always shown whole; paginating it would
-    #: break drag-and-drop ordering in the admin.
-    pagination_class = None
+    def _resolve(self, route):
+        model = ORDERED_PAGES.get(route)
+        if model is None:
+            return None, None
+        return model, PAGE_SERIALIZERS[route]
 
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return PageSection.objects.none()
-        return PageSection.objects.filter(page=self.get_page()).select_related("section")
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        if not getattr(self, "swagger_fake_view", False):
-            context["page"] = self.get_page()
-        return context
-
-    @extend_schema(tags=["admin:pages"], summary="List a page's sections")
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
+        """`HasModelPermission` reads the model off the queryset."""
+        model, _ = self._resolve(self.kwargs.get("route", ""))
+        return model.objects.all() if model else None
 
     @extend_schema(
         tags=["admin:pages"],
-        summary="Attach a section to a page",
-        description=(
-            "Creates a placement. The same section may be attached to several "
-            "pages, and the same section type may appear twice on one page under "
-            "different section keys."
-        ),
-    )
-    def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
-
-
-class PageSectionDetailAPIView(
-    PageCompositionMixin, AdminRetrieveUpdateDestroyAPIView
-):
-    required_permissions = ["pages.change_page"]
-    detail_serializer_class = PageSectionSerializer
-    write_serializer_class = PageSectionWriteSerializer
-    lookup_url_kwarg = "page_section_id"
-
-    def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return PageSection.objects.none()
-        return PageSection.objects.filter(page=self.get_page()).select_related("section")
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        if not getattr(self, "swagger_fake_view", False):
-            context["page"] = self.get_page()
-        return context
-
-    @extend_schema(
-        tags=["admin:pages"], summary="Update a placement (key, order, visibility)"
-    )
-    def patch(self, request, *args, **kwargs):
-        return super().patch(request, *args, **kwargs)
-
-    @extend_schema(
-        tags=["admin:pages"],
-        summary="Detach a section from a page",
-        description=(
-            "Removes the placement only. The section itself is untouched and "
-            "stays available to other pages."
-        ),
-    )
-    def delete(self, request, *args, **kwargs):
-        return super().delete(request, *args, **kwargs)
-
-
-class PageSectionReorderAPIView(APIView):
-    """Atomic drag-and-drop reorder of a page's composition."""
-
-    permission_classes = [IsAuthenticated, HasModelPermission]
-    required_permissions = ["pages.change_page"]
-    envelope_message = "Order updated"
-
-    @extend_schema(
-        tags=["admin:pages"],
-        summary="Reorder a page's sections",
-        request=None,
+        summary="Retrieve a page with all of its sections",
         responses={200: None},
-        description='Atomic. Body: {"sections": [{"id": 1, "order": 1}, ...]}',
     )
-    def patch(self, request, pk):
-        page = generics.get_object_or_404(Page, pk=pk)
+    def get(self, request, route):
+        model, serializer_class = self._resolve(route)
+        if model is None:
+            return self._unknown_route(route)
 
-        entries = request.data.get("sections")
-        error = _validate_reorder(entries)
-        if error:
-            return _bad_request(error)
+        page = load_page(model)
+        return Response(serializer_class(page, context={"request": request}).data)
 
-        ids = [entry["id"] for entry in entries]
-        if len(ids) != len(set(ids)):
-            return _bad_request("The same placement appears more than once.")
-
-        owned = PageSection.objects.filter(page=page, pk__in=ids).in_bulk()
-        unknown = sorted(set(ids) - set(owned))
-        if unknown:
-            return _bad_request(
-                "These placements do not belong to this page: "
-                + ", ".join(str(i) for i in unknown)
-            )
-
-        to_update = []
-        for entry in entries:
-            placement = owned[entry["id"]]
-            placement.order = entry["order"]
-            to_update.append(placement)
-
-        with transaction.atomic():
-            PageSection.objects.bulk_update(to_update, ["order"])
-
-        return Response({"reordered": len(to_update)})
-
-
-def _validate_reorder(entries):
-    if not isinstance(entries, list) or not entries:
-        return "'sections' must be a non-empty list."
-    for entry in entries:
-        if not isinstance(entry, dict) or "id" not in entry or "order" not in entry:
-            return "Each entry in 'sections' needs an 'id' and an 'order'."
-        for key in ("id", "order"):
-            if not isinstance(entry[key], int) or isinstance(entry[key], bool):
-                return f"Each '{key}' must be an integer."
-        if entry["order"] < 0:
-            return "'order' cannot be negative."
-    return None
-
-
-def _bad_request(message):
-    return Response(
-        {"success": False, "message": message,
-         "errors": {"sections": [message]}, "code": "invalid"},
-        status=status.HTTP_400_BAD_REQUEST,
+    @extend_schema(
+        tags=["admin:pages"],
+        summary="Update a page and any of its sections",
+        description=(
+            "Partial. Omitted sections are untouched; an omitted item collection "
+            "is left alone, while an empty list clears it. Item order is the "
+            "array order."
+        ),
+        responses={200: None},
     )
+    def patch(self, request, route):
+        model, serializer_class = self._resolve(route)
+        if model is None:
+            return self._unknown_route(route)
 
+        page = load_page(model)
+        serializer = serializer_class(
+            page, data=request.data, partial=True, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-# ─── Company ─────────────────────────────────────────────────────────────────
+        self.envelope_message = "Page updated"
+        return Response(serializer_class(load_page(model), context={"request": request}).data)
+
+    @staticmethod
+    def _unknown_route(route):
+        return Response(
+            {
+                "success": False,
+                "message": (
+                    f"No page at '{route}'. The site has: "
+                    f"{', '.join(ORDERED_PAGES)}."
+                ),
+                "errors": {},
+                "code": "not_found",
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )
 
 
 class CompanyAPIView(AdminRetrieveUpdateAPIView):

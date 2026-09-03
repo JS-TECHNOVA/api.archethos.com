@@ -18,6 +18,10 @@ from archethosbackend.apps.content.admin_views import (
     CounterListCreateAPIView,
     FAQDetailAPIView,
     FAQListCreateAPIView,
+    GalleryItemDetailAPIView,
+    GalleryItemListCreateAPIView,
+    LocationDetailAPIView,
+    LocationListCreateAPIView,
     ProjectDetailAPIView,
     ProjectGalleryItemAPIView,
     ProjectGalleryListCreateAPIView,
@@ -41,21 +45,7 @@ from archethosbackend.apps.enquiries.views import (
 from archethosbackend.apps.pages.admin_views import (
     CompanyAPIView,
     PageDetailAPIView,
-    PageListCreateAPIView,
-    PageSectionDetailAPIView,
-    PageSectionListCreateAPIView,
-    PageSectionReorderAPIView,
-)
-
-from archethosbackend.apps.sections.views import (
-    SectionBrowseAPIView,
-    SectionDetailAPIView,
-    SectionItemDetailAPIView,
-    SectionItemListCreateAPIView,
-    SectionItemReorderAPIView,
-    SectionListCreateAPIView,
-    SectionTypeCatalogueAPIView,
-    SectionUsageAPIView,
+    PageListAPIView,
 )
 
 from archethosbackend.apps.media_library.views import (
@@ -171,63 +161,26 @@ urlpatterns = [
     path("counters/", CounterListCreateAPIView.as_view(), name="counter-list"),
     path("counters/<int:pk>/", CounterDetailAPIView.as_view(), name="counter-detail"),
     # ── Sections ──────────────────────────────────────────────────────────────
-    # One set of routes serves every section type. <segment> resolves through
-    # SECTION_REGISTRY, so a new section type needs no new URL entry.
-    path("sections/", SectionBrowseAPIView.as_view(), name="section-browse"),
+    # ── Pages ────────────────────────────────────────────────────────────────
+    # Ten fixed pages, addressed by their public route. No create, no delete:
+    # the site's structure is code, and `ensure_pages` makes the rows.
+    # <path:route> not <slug:route> — "legal/privacy" contains a slash.
+    path("pages/", PageListAPIView.as_view(), name="page-list"),
+    path("pages/<path:route>/", PageDetailAPIView.as_view(), name="page-detail"),
+    # Master data added by the page refactor: both were hardcoded in the
+    # frontend and are now edited once and referenced from several pages.
+    path("gallery/", GalleryItemListCreateAPIView.as_view(), name="gallery-list"),
     path(
-        "sections/types/",
-        SectionTypeCatalogueAPIView.as_view(),
-        name="section-type-list",
+        "gallery/<int:pk>/",
+        GalleryItemDetailAPIView.as_view(),
+        name="gallery-detail",
     ),
+    path("locations/", LocationListCreateAPIView.as_view(), name="location-list"),
     path(
-        "sections/<slug:segment>/",
-        SectionListCreateAPIView.as_view(),
-        name="section-list",
+        "locations/<int:pk>/",
+        LocationDetailAPIView.as_view(),
+        name="location-detail",
     ),
-    path(
-        "sections/<slug:segment>/<int:pk>/",
-        SectionDetailAPIView.as_view(),
-        name="section-detail",
-    ),
-    path(
-        "sections/<slug:segment>/<int:pk>/usage/",
-        SectionUsageAPIView.as_view(),
-        name="section-usage",
-    ),
-    path(
-        "sections/<slug:segment>/<int:pk>/items/",
-        SectionItemListCreateAPIView.as_view(),
-        name="section-item-list",
-    ),
-    path(
-        "sections/<slug:segment>/<int:pk>/items/reorder/",
-        SectionItemReorderAPIView.as_view(),
-        name="section-item-reorder",
-    ),
-    path(
-        "sections/<slug:segment>/<int:pk>/items/<int:item_id>/",
-        SectionItemDetailAPIView.as_view(),
-        name="section-item-detail",
-    ),
-    # ── Pages and composition ─────────────────────────────────────────────────
-    path("pages/", PageListCreateAPIView.as_view(), name="page-list"),
-    path("pages/<int:pk>/", PageDetailAPIView.as_view(), name="page-detail"),
-    path(
-        "pages/<int:pk>/sections/",
-        PageSectionListCreateAPIView.as_view(),
-        name="page-section-list",
-    ),
-    path(
-        "pages/<int:pk>/sections/reorder/",
-        PageSectionReorderAPIView.as_view(),
-        name="page-section-reorder",
-    ),
-    path(
-        "pages/<int:pk>/sections/<int:page_section_id>/",
-        PageSectionDetailAPIView.as_view(),
-        name="page-section-detail",
-    ),
-    # Site-wide settings (singleton: no id, no list)
     path("company/", CompanyAPIView.as_view(), name="company-detail"),
     # Enquiries are read-only: they arrive from the public form.
     path("enquiries/", EnquiryListAPIView.as_view(), name="enquiry-list"),

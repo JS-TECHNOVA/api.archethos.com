@@ -1,3 +1,11 @@
+"""
+Projects — the portfolio's primary content type.
+
+Everything the detail route at `/projects/[slug]` renders lives here: the five
+narrative blocks, the materials schedule and the media. Sections that list
+projects reference these rows through item models and never copy their fields.
+"""
+
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.db import models
@@ -17,8 +25,28 @@ class ProjectStatus(models.TextChoices):
     COMPLETED = "COMPLETED", "Completed"
 
 
+class ProjectCategory(models.TextChoices):
+    RESIDENTIAL = "RESIDENTIAL", "Residential"
+    COMMERCIAL = "COMMERCIAL", "Commercial"
+    INTERIOR = "INTERIOR", "Interior"
+    RENOVATION = "RENOVATION", "Renovation"
+
+
+class ProjectLayout(models.TextChoices):
+    """How wide the project's card sits in the index grid.
+
+    A composition decision the studio makes per project — a landscape hero
+    earns a full-width card, a portrait one does not — so it belongs to the
+    project rather than to the section that happens to list it.
+    """
+
+    FULL = "full", "Full width"
+    HALF = "half", "Half width"
+    PORTRAIT = "portrait", "Portrait"
+
+
 class Project(SluggedModel, PublishableModel, SEOModel, TimeStampedModel):
-    """An architecture project — the portfolio's primary content type."""
+    """One project in the portfolio."""
 
     short_description = models.CharField(max_length=500, blank=True)
     description = models.TextField(blank=True)
@@ -28,14 +56,33 @@ class Project(SluggedModel, PublishableModel, SEOModel, TimeStampedModel):
     project_status = models.CharField(
         max_length=16, choices=ProjectStatus.choices, default=ProjectStatus.COMPLETED
     )
+    category = models.CharField(
+        max_length=16,
+        choices=ProjectCategory.choices,
+        default=ProjectCategory.RESIDENTIAL,
+        db_index=True,
+    )
+    layout = models.CharField(
+        max_length=16, choices=ProjectLayout.choices, default=ProjectLayout.HALF
+    )
 
-    featured_image = models.ForeignKey(
+    cover_image = models.ForeignKey(
         "media_library.MediaAsset",
         null=True,
         blank=True,
         on_delete=models.PROTECT,
         related_name="+",
     )
+
+    # ── The narrative ────────────────────────────────────────────────────────
+    # Five named blocks rather than one rich-text body. Every project answers
+    # the same five questions, and naming them is what stops a detail page from
+    # becoming whatever the last person to write one felt like including.
+    design_intent = models.TextField(blank=True)
+    spatial_planning = models.TextField(blank=True)
+    interior_note = models.TextField(blank=True)
+    construction_note = models.TextField(blank=True)
+    outcome_note = models.TextField(blank=True)
 
     #: Curation, not publishing — a featured project can still be a draft.
     is_featured = models.BooleanField(default=False, db_index=True)
@@ -52,6 +99,7 @@ class Project(SluggedModel, PublishableModel, SEOModel, TimeStampedModel):
         indexes = [
             models.Index(fields=["status", "published_at"]),
             models.Index(fields=["is_featured", "status"]),
+            models.Index(fields=["category", "status"]),
             GinIndex(fields=["search_vector"]),
         ]
 
@@ -75,16 +123,58 @@ class Project(SluggedModel, PublishableModel, SEOModel, TimeStampedModel):
                 + SearchVector("short_description", weight="B", config="english")
                 + SearchVector("location", weight="B", config="english")
                 + SearchVector("description", weight="C", config="english")
+                + SearchVector("design_intent", weight="D", config="english")
             )
         )
 
 
+class ProjectMaterial(OrderedItemModel, TimeStampedModel):
+    """One line of the materials schedule.
+
+    A child table rather than JSON because the studio edits these individually
+    and the same material recurs across projects — which makes "every project
+    using Kota stone" a question worth being able to answer.
+    """
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="materials"
+    )
+
+    name = models.CharField(max_length=255, help_text='e.g. "Board-marked concrete".')
+    note = models.CharField(
+        max_length=500, blank=True, help_text='Where it is used, e.g. "Court paving".'
+    )
+
+    class Meta(OrderedItemModel.Meta):
+        indexes = [models.Index(fields=["project", "order"])]
+
+    def __str__(self):
+        return f"{self.project.title} — {self.name}"
+
+
+class ProjectMediaKind(models.TextChoices):
+    """Which of the three media strips an item belongs to.
+
+    One table with a discriminator rather than three near-identical ones: they
+    hold the same fields, are reordered by the same endpoint and are rendered by
+    the same component with a different heading.
+    """
+
+    GALLERY = "GALLERY", "Gallery"
+    FLOOR_PLAN = "FLOOR_PLAN", "Floor plan"
+    DRAWING = "DRAWING", "Drawing"
+
+
 class ProjectGalleryItem(OrderedItemModel, TimeStampedModel):
-    """One image in a project's own gallery.
+    """One piece of media attached to a project.
 
     Media is PROTECT so an image cannot be deleted out from under a published
-    project. `order` carries no constraint (plan §2.3), which is what lets
-    reordering be a plain bulk_update inside one transaction.
+    project. `order` carries no unique constraint, which is what lets reordering
+    be a plain `bulk_update` inside one transaction.
+
+    The uniqueness rule spans `kind` on purpose: the same drawing can legitimately
+    appear once in the gallery and once among the drawings, but not twice in
+    either.
     """
 
     project = models.ForeignKey(
@@ -93,15 +183,31 @@ class ProjectGalleryItem(OrderedItemModel, TimeStampedModel):
     media = models.ForeignKey(
         "media_library.MediaAsset", on_delete=models.PROTECT, related_name="+"
     )
+
+    kind = models.CharField(
+        max_length=16,
+        choices=ProjectMediaKind.choices,
+        default=ProjectMediaKind.GALLERY,
+        db_index=True,
+    )
+
+    #: Per-project, per-placement text. Distinct from the asset's own caption in
+    #: the media library, which describes the file wherever it is used; this
+    #: describes what it is doing on *this* project.
+    title = models.CharField(max_length=255, blank=True)
     caption = models.CharField(max_length=500, blank=True)
+    description = models.TextField(blank=True)
 
     class Meta(OrderedItemModel.Meta):
         constraints = [
             models.UniqueConstraint(
-                fields=["project", "media"], name="unique_project_gallery_media"
+                fields=["project", "media", "kind"],
+                name="unique_project_media_per_kind",
             )
         ]
-        indexes = [models.Index(fields=["project", "order"])]
+        indexes = [
+            models.Index(fields=["project", "kind", "order"]),
+        ]
 
     def __str__(self):
-        return f"{self.project.title} — image {self.order}"
+        return f"{self.project.title} — {self.get_kind_display()} {self.order}"

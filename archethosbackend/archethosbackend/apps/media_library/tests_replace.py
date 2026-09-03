@@ -258,11 +258,11 @@ class MediaReplaceTests(MediaBaseTestCase):
         """A project pointing at this asset still resolves — same id, same path."""
         from archethosbackend.apps.content.models import Project
 
-        project = Project.objects.create(title="Villa", featured_image=self.asset)
+        project = Project.objects.create(title="Villa", cover_image=self.asset)
         path_before = self.asset.relative_path
 
         self.replace(png_upload("new.png", width=1000, height=1000))
 
         project.refresh_from_db()
-        self.assertEqual(project.featured_image_id, self.asset.pk)
-        self.assertEqual(project.featured_image.relative_path, path_before)
+        self.assertEqual(project.cover_image_id, self.asset.pk)
+        self.assertEqual(project.cover_image.relative_path, path_before)

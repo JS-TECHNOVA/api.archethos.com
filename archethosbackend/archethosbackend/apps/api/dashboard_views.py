@@ -14,12 +14,19 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from archethosbackend.apps.content.models import BlogPost, FAQ, Counter, Project, Service
+from archethosbackend.apps.content.models import (
+    FAQ,
+    BlogPost,
+    Counter,
+    GalleryItem,
+    Location,
+    Project,
+    Service,
+)
 from archethosbackend.apps.core.models import PublishStatus
 from archethosbackend.apps.enquiries.models import Enquiry
 from archethosbackend.apps.media_library.models import MediaAsset
-from archethosbackend.apps.pages.models import Page
-from archethosbackend.apps.sections.models import Section
+from archethosbackend.apps.pages.models import ORDERED_PAGES
 
 User = get_user_model()
 
@@ -78,21 +85,37 @@ class DashboardStatsAPIView(APIView):
             "journal": publishable(BlogPost, "content.view_blogpost"),
             "faqs": publishable(FAQ, "content.view_faq"),
             "counters": publishable(Counter, "content.view_counter"),
+            "gallery": publishable(GalleryItem, "content.view_galleryitem"),
+            "locations": publishable(Location, "content.view_location"),
         }
+
+        # The site has a fixed set of pages, so the useful number is not how
+        # many exist but how many are live and how many are still missing a
+        # required section — that is the one that needs acting on.
+        pages = None
+        if user.has_perm("pages.view_homepage"):
+            live = incomplete = 0
+            for model in ORDERED_PAGES.values():
+                page = model.objects.first()
+                if page is None:
+                    incomplete += 1
+                    continue
+                if page.is_published:
+                    live += 1
+                if page.missing_sections():
+                    incomplete += 1
+            pages = {
+                "total": len(ORDERED_PAGES),
+                "published": live,
+                "incomplete": incomplete,
+            }
 
         return Response(
             {
                 # Drop anything this user may not see, rather than sending nulls
                 # the dashboard would have to filter again.
                 "content": {k: v for k, v in content.items() if v is not None},
-                "structure": {
-                    "pages": Page.objects.count()
-                    if user.has_perm("pages.view_page")
-                    else None,
-                    "sections": Section.objects.count()
-                    if user.has_perm("sections.view_section")
-                    else None,
-                },
+                "pages": pages,
                 "media": (
                     MediaAsset.objects.count()
                     if user.has_perm("media_library.view_mediaasset")

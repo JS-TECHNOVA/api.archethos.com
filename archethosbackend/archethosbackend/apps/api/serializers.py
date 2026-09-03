@@ -66,3 +66,63 @@ class SEOBlockField(serializers.Field):
 
     def to_representation(self, instance):
         return PublicSEOSerializer(instance).data
+
+
+class NestedCollectionsMixin:
+    """Write ordered child collections wholesale, in one transaction.
+
+    Used wherever a record owns lists that are edited as part of it — a page's
+    section items, a project's materials, a service's chapters. Collections are
+    replaced rather than diffed, which has three consequences, all wanted:
+
+      * `order` is the array index, so reordering is "send the array in the new
+        order" and needs no separate endpoint;
+      * removing an item is omitting it, with no tombstone to chase;
+      * a save is idempotent — the same payload twice leaves the same rows.
+
+    Only collections actually present in the payload are touched, so a PATCH
+    that omits one leaves it alone rather than emptying it. Sending `[]` is how
+    you clear one, and that distinction is the whole reason this is explicit.
+    """
+
+    #: serializer field name → related_name on the model.
+    collections: dict = {}
+
+    def create(self, validated_data):
+        from django.db import transaction
+
+        with transaction.atomic():
+            payloads = self._extract_collections(validated_data)
+            instance = super().create(validated_data)
+            self._write_collections(instance, payloads)
+            return instance
+
+    def update(self, instance, validated_data):
+        from django.db import transaction
+
+        with transaction.atomic():
+            payloads = self._extract_collections(validated_data)
+            instance = super().update(instance, validated_data)
+            self._write_collections(instance, payloads)
+            return instance
+
+    def _extract_collections(self, validated_data):
+        return {
+            field: validated_data.pop(field)
+            for field in self.collections
+            if field in validated_data
+        }
+
+    def _write_collections(self, instance, payloads):
+        for field, rows in payloads.items():
+            manager = getattr(instance, self.collections[field])
+            model = manager.model
+            fk_name = manager.field.name
+
+            manager.all().delete()
+            model.objects.bulk_create(
+                [
+                    model(order=index, **{fk_name: instance}, **row)
+                    for index, row in enumerate(rows)
+                ]
+            )

@@ -45,10 +45,10 @@ def search_all(query, limit=DEFAULT_LIMIT):
 
     return {
         "projects": _search(
-            Project.objects.live().select_related("featured_image"), query, limit
+            Project.objects.live().select_related("cover_image"), query, limit
         ),
         "services": _search(
-            Service.objects.live().select_related("featured_image", "icon"), query, limit
+            Service.objects.live().select_related("index_image", "icon"), query, limit
         ),
         "blogs": _search(
             BlogPost.objects.live().select_related("featured_image", "category"),

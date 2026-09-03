@@ -9,9 +9,11 @@ Both the bootstrap migration and the `sync_cms_groups` management command use
 this one definition, so there is no second copy to drift.
 """
 
+#: `pages` holds the page and section models; `content` the master data they
+#: reference. There is no longer a `sections` app — sections belong to the
+#: page that owns them.
 CONTENT_APPS = [
     "content",
-    "sections",
     "pages",
     "media_library",
     "enquiries",

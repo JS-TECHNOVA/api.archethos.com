@@ -6,8 +6,9 @@ from archethosbackend.apps.content.search_views import PublicSearchAPIView
 from archethosbackend.apps.enquiries.views import EnquirySubmitAPIView
 
 from archethosbackend.apps.pages.public_views import (
-    PageAggregateAPIView,
     PublicCompanyAPIView,
+    PublicPageAPIView,
+    PublicPageIndexAPIView,
 )
 
 from archethosbackend.apps.content.public_views import (
@@ -16,6 +17,8 @@ from archethosbackend.apps.content.public_views import (
     PublicBlogPostListAPIView,
     PublicCounterListAPIView,
     PublicFAQListAPIView,
+    PublicGalleryItemListAPIView,
+    PublicLocationListAPIView,
     PublicProjectDetailAPIView,
     PublicProjectListAPIView,
     PublicServiceDetailAPIView,
@@ -23,10 +26,11 @@ from archethosbackend.apps.content.public_views import (
 )
 
 urlpatterns = [
-    # The aggregate endpoint: one request renders a whole page.
-    # <path:slug> not <slug:slug> - page slugs mirror frontend routes, which
-    # nest ("legal/privacy"), and the slug converter does not match "/".
-    path("pages/<path:slug>/", PageAggregateAPIView.as_view(), name="page-aggregate"),
+    # One request renders a whole route. <path:route> not <slug:route> — page
+    # routes mirror the frontend's, which nest ("legal/privacy"), and the slug
+    # converter does not match "/".
+    path("pages/", PublicPageIndexAPIView.as_view(), name="page-index"),
+    path("pages/<path:route>/", PublicPageAPIView.as_view(), name="page-detail"),
     path("company/", PublicCompanyAPIView.as_view(), name="company"),
     path("projects/", PublicProjectListAPIView.as_view(), name="project-list"),
     path(
@@ -50,6 +54,8 @@ urlpatterns = [
     ),
     path("faqs/", PublicFAQListAPIView.as_view(), name="faq-list"),
     path("counters/", PublicCounterListAPIView.as_view(), name="counter-list"),
+    path("gallery/", PublicGalleryItemListAPIView.as_view(), name="gallery-list"),
+    path("locations/", PublicLocationListAPIView.as_view(), name="location-list"),
     path("search/", PublicSearchAPIView.as_view(), name="search"),
     # The only place an anonymous visitor writes to the database.
     path("enquiries/", EnquirySubmitAPIView.as_view(), name="enquiry-submit"),

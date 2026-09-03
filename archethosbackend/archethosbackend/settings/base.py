@@ -51,7 +51,6 @@ LOCAL_APPS = [
     "archethosbackend.apps.audit",
     "archethosbackend.apps.media_library",
     "archethosbackend.apps.content",
-    "archethosbackend.apps.sections",
     "archethosbackend.apps.pages",
     "archethosbackend.apps.enquiries",
     "archethosbackend.apps.api",

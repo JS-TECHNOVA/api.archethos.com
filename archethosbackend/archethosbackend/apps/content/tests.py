@@ -198,37 +198,37 @@ class AdminContentTests(ContentTestCase):
         media = self.make_media()
         response = self.client_.post(
             reverse("v1:admin:project-list"),
-            {"title": "Hillside House", "featured_image": media.relative_path},
+            {"title": "Hillside House", "cover_image": media.relative_path},
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201, response.content)
 
         project = Project.objects.get(title="Hillside House")
-        self.assertEqual(project.featured_image, media)
+        self.assertEqual(project.cover_image, media)
 
     def test_create_project_with_media_by_id(self):
         media = self.make_media()
         response = self.client_.post(
             reverse("v1:admin:project-list"),
-            {"title": "Courtyard House", "featured_image": media.pk},
+            {"title": "Courtyard House", "cover_image": media.pk},
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(Project.objects.get(title="Courtyard House").featured_image, media)
+        self.assertEqual(Project.objects.get(title="Courtyard House").cover_image, media)
 
     def test_unknown_media_path_is_rejected(self):
         response = self.client_.post(
             reverse("v1:admin:project-list"),
-            {"title": "Ghost House", "featured_image": "/media/uploads/nope.webp"},
+            {"title": "Ghost House", "cover_image": "/media/uploads/nope.webp"},
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("featured_image", response.json()["errors"])
+        self.assertIn("cover_image", response.json()["errors"])
 
     def test_media_round_trips_unchanged(self):
         """A GET'd payload must PATCH back without the client rewriting it."""
         media = self.make_media()
-        project = Project.objects.create(title="Round Trip", featured_image=media)
+        project = Project.objects.create(title="Round Trip", cover_image=media)
 
         fetched = self.client_.get(
             reverse("v1:admin:project-detail", args=[project.pk])
@@ -236,16 +236,16 @@ class AdminContentTests(ContentTestCase):
 
         response = self.client_.patch(
             reverse("v1:admin:project-detail", args=[project.pk]),
-            {"featured_image": fetched["featured_image"]},
+            {"cover_image": fetched["cover_image"]},
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
         project.refresh_from_db()
-        self.assertEqual(project.featured_image, media)
+        self.assertEqual(project.cover_image, media)
 
     def test_in_use_media_cannot_be_deleted(self):
         media = self.make_media()
-        Project.objects.create(title="Uses It", featured_image=media)
+        Project.objects.create(title="Uses It", cover_image=media)
 
         response = self.client_.delete(
             reverse("v1:admin:media-detail", args=[media.pk])

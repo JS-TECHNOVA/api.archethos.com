@@ -334,20 +334,20 @@ class MediaDetailTests(MediaTestCase):
         having it.
         """
         from archethosbackend.apps.content.models import Project, ProjectGalleryItem
-        from archethosbackend.apps.sections.models import HeroSection, HeroSlide
+        from archethosbackend.apps.pages.models import HeroSection, HeroSlide
 
-        project = Project.objects.create(title="Villa", featured_image=self.asset)
+        project = Project.objects.create(title="Villa", cover_image=self.asset)
         ProjectGalleryItem.objects.create(
             project=project, media=self.asset, order=0
         )
-        hero = HeroSection.objects.create(internal_label="Home hero")
+        hero = HeroSection.objects.create()
         HeroSlide.objects.create(section=hero, heading="Hi", media=self.asset, order=0)
 
         usage = self.asset.usage()
         found = {(row["model"], row["field"]) for row in usage}
 
         self.assertEqual(len(usage), 3, usage)
-        self.assertIn(("project", "featured_image"), found)
+        self.assertIn(("project", "cover_image"), found)
         self.assertIn(("projectgalleryitem", "media"), found)
         self.assertIn(("heroslide", "media"), found)
 
@@ -355,7 +355,7 @@ class MediaDetailTests(MediaTestCase):
         """The two must never contradict each other."""
         from archethosbackend.apps.content.models import Project
 
-        Project.objects.create(title="Villa", featured_image=self.asset)
+        Project.objects.create(title="Villa", cover_image=self.asset)
 
         body = self.client_.get(
             reverse("v1:admin:media-usage", args=[self.asset.pk])

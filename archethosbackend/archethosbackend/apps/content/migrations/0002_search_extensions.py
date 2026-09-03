@@ -17,7 +17,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
 
-    dependencies = [("content", "0002_blogpost_search_vector_project_search_vector_and_more")]
+    dependencies = [("content", "0001_initial")]
 
     operations = [
         TrigramExtension(),

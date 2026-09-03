@@ -44,6 +44,10 @@ $MANAGE migrate --no-input
 say "Collecting static files"
 $MANAGE collectstatic --no-input --clear
 
+say "Ensuring page rows exist"
+# A page model with no row is a page the admin cannot open. Idempotent.
+$MANAGE ensure_pages
+
 say "Syncing CMS roles"
 # Roles grant whatever models exist when they are synced, so this has to run
 # after migrate on any deploy that added a model.

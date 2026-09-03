@@ -1,17 +1,35 @@
 """
 Master content models.
 
-One app rather than five: Project, Service, BlogPost, FAQ and Counter are all
-reusable content edited by the same people with the same workflow, and five apps
-for seven models was partitioning for its own sake. Split into modules here so
-each file stays readable.
+Reusable entities that exist independently of any page: a Service is a thing the
+studio does, whether or not a services section happens to list it. Sections
+reference these through item models rather than copying their fields, so a
+correction is made once and appears everywhere.
+
+Split into modules so each file stays readable; they are one app because they
+are edited by the same people with the same workflow.
 """
 
 from .blog import BlogCategory, BlogPost
 from .counter import Counter
 from .faq import FAQ, FAQCategory
-from .project import Project, ProjectGalleryItem, ProjectStatus
-from .service import Service
+from .gallery import GalleryCategory, GalleryItem
+from .location import Location
+from .project import (
+    Project,
+    ProjectCategory,
+    ProjectGalleryItem,
+    ProjectLayout,
+    ProjectMaterial,
+    ProjectMediaKind,
+    ProjectStatus,
+)
+from .service import (
+    Service,
+    ServiceDetailSection,
+    ServiceGalleryItem,
+    ServiceProcessStep,
+)
 
 __all__ = [
     "BlogCategory",
@@ -19,8 +37,18 @@ __all__ = [
     "Counter",
     "FAQ",
     "FAQCategory",
+    "GalleryCategory",
+    "GalleryItem",
+    "Location",
     "Project",
+    "ProjectCategory",
     "ProjectGalleryItem",
+    "ProjectLayout",
+    "ProjectMaterial",
+    "ProjectMediaKind",
     "ProjectStatus",
     "Service",
+    "ServiceDetailSection",
+    "ServiceGalleryItem",
+    "ServiceProcessStep",
 ]
