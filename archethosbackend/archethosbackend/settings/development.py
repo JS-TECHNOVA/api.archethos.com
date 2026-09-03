@@ -18,3 +18,13 @@ REST_FRAMEWORK = {
 }
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# django_ratelimit refuses a per-process cache, and it is right to in production
+# — three gunicorn workers keeping three counters makes every limit a lie. Here
+# there is one process, so LocMemCache is genuinely shared with everything that
+# can read it. Silenced rather than papered over with a real cache, because a dev
+# machine should not need `createcachetable` before it can serve a request.
+SILENCED_SYSTEM_CHECKS = [
+    "django_ratelimit.E003",
+    "django_ratelimit.W001",
+]

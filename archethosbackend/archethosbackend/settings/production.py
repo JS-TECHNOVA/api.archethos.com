@@ -22,3 +22,13 @@ X_FRAME_OPTIONS = "DENY"
 AUTH_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
+
+# A per-process cache makes every rate limit a lie: three gunicorn workers means
+# three independent counters, so a "5 per minute" login limit is really fifteen,
+# and it empties on every reload. Refuse to boot rather than serve that quietly.
+if "locmem" in CACHES["default"]["BACKEND"].lower():  # noqa: F405
+    raise RuntimeError(
+        "CACHE_URL must name a cache shared between processes — rate limit "
+        "counters live in it. Use dbcache://django_cache (and run "
+        "`manage.py createcachetable`) or a rediscache:// URL."
+    )

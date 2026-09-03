@@ -22,6 +22,12 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from archethosbackend.apps.api.ratelimit import (
+    limited,
+    login_identifier,
+    too_many,
+)
+
 from .cookies import clear_auth_cookies, set_auth_cookies
 from .serializers import (
     CurrentUserSerializer,
@@ -46,9 +52,49 @@ class LoginView(APIView):
             "are never returned in the body."
         ),
     )
+    #: Checked without incrementing, then incremented only on a failure — see
+    #: `_over_limit`. Two limits rather than one: per IP stops a single source
+    #: hammering any account, per account stops a distributed attack on one
+    #: account where every source stays under the IP limit.
+    def _login_limits(self, request):
+        return (
+            ("login-ip", settings.RATELIMIT_LOGIN_IP, "ip"),
+            ("login-user", settings.RATELIMIT_LOGIN_USER, login_identifier),
+        )
+
+    def _over_limit(self, request):
+        return any(
+            limited(
+                request,
+                group=group,
+                rate=rate,
+                key=key,
+                method="POST",
+                increment=False,
+            )
+            for group, rate, key in self._login_limits(request)
+            if rate
+        )
+
+    def _record_failure(self, request):
+        for group, rate, key in self._login_limits(request):
+            if rate:
+                limited(request, group=group, rate=rate, key=key, method="POST")
+
     def post(self, request):
+        # Only failed attempts consume the budget. Counting successes would lock
+        # a real user out of their own account for logging in too often, which
+        # is not a threat model — repeated *failures* are.
+        if self._over_limit(request):
+            return too_many(
+                "Too many sign-in attempts. Please wait a few minutes and try again."
+            )
+
         serializer = LoginSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            self._record_failure(request)
+            serializer.is_valid(raise_exception=True)
+
         user = serializer.validated_data["user"]
 
         refresh = RefreshToken.for_user(user)
@@ -81,6 +127,15 @@ class RefreshView(APIView):
         ),
     )
     def post(self, request):
+        # The cookie is the credential here, so this endpoint is effectively
+        # unauthenticated: a stolen refresh token would otherwise be worth an
+        # unlimited number of fresh access tokens.
+        if settings.RATELIMIT_REFRESH and limited(
+            request, group="auth-refresh", rate=settings.RATELIMIT_REFRESH,
+            method="POST",
+        ):
+            return too_many("Too many refresh attempts. Please log in again.")
+
         raw_refresh = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_NAME)
         if not raw_refresh:
             return self._reject("No refresh token was provided.")
@@ -205,6 +260,19 @@ class PasswordChangeView(APIView):
         responses={200: None},
     )
     def post(self, request):
+        # Keyed to the account, not the address: changing a password requires the
+        # current one, so this caps guessing it from anywhere at once.
+        if settings.RATELIMIT_PASSWORD_CHANGE and limited(
+            request,
+            group="password-change",
+            rate=settings.RATELIMIT_PASSWORD_CHANGE,
+            key="user",
+            method="POST",
+        ):
+            return too_many(
+                "Too many password change attempts. Please try again later."
+            )
+
         serializer = PasswordChangeSerializer(
             data=request.data, context={"request": request}
         )

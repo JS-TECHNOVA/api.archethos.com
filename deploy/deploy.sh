@@ -44,6 +44,10 @@ $MANAGE migrate --no-input
 say "Collecting static files"
 $MANAGE collectstatic --no-input --clear
 
+say "Ensuring the cache table exists"
+# Rate limit counters live in the cache. Harmless when CACHE_URL is not dbcache.
+$MANAGE createcachetable
+
 say "Ensuring page rows exist"
 # A page model with no row is a page the admin cannot open. Idempotent.
 $MANAGE ensure_pages

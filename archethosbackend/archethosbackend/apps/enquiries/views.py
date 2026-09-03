@@ -7,7 +7,7 @@ needs: a rate limit and a honeypot.
 """
 
 import django_filters
-from django_ratelimit.core import is_ratelimited
+from django.conf import settings
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -18,6 +18,7 @@ from archethosbackend.apps.api.generics import (
     AdminListAPIView,
     AdminRetrieveUpdateDestroyAPIView,
 )
+from archethosbackend.apps.api.ratelimit import limited, too_many
 
 from .models import Enquiry
 from .serializers import (
@@ -26,10 +27,6 @@ from .serializers import (
     EnquirySubmitSerializer,
     EnquiryUpdateSerializer,
 )
-
-#: Generous for a person, useless for a script.
-RATE = "10/h"
-
 
 class EnquirySubmitAPIView(APIView):
     """`POST /api/v1/public/enquiries/` — the site's contact forms."""
@@ -44,23 +41,23 @@ class EnquirySubmitAPIView(APIView):
         request=EnquirySubmitSerializer,
         responses={201: None},
         description=(
-            "Rate limited per IP. Include an empty `website` field in the form: "
+            "Rate limited per IP (RATELIMIT_ENQUIRY). Include an empty `website` "
+            "field in the form: "
             "it is a honeypot, and a filled one is silently accepted but discarded."
         ),
     )
     def post(self, request):
-        if is_ratelimited(
-            request, group="enquiry-submit", key="ip", rate=RATE,
-            method="POST", increment=True,
+        # Generous for a person, useless for a script. The rate is configuration
+        # (RATELIMIT_ENQUIRY) because what counts as abusive differs between a
+        # launch week and a quiet one.
+        if settings.RATELIMIT_ENQUIRY and limited(
+            request,
+            group="enquiry-submit",
+            rate=settings.RATELIMIT_ENQUIRY,
+            method="POST",
         ):
-            return Response(
-                {
-                    "success": False,
-                    "message": "Too many enquiries from this address. Please try again later.",
-                    "errors": {},
-                    "code": "throttled",
-                },
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            return too_many(
+                "Too many enquiries from this address. Please try again later."
             )
 
         serializer = EnquirySubmitSerializer(data=request.data)

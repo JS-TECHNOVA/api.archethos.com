@@ -43,6 +43,10 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "django_filters",
     "drf_spectacular",
+    # Installed for its system checks as much as its code: it warns when the
+    # cache backend is per-process, which silently multiplies every limit by
+    # the worker count.
+    "django_ratelimit",
 ]
 
 LOCAL_APPS = [
@@ -242,6 +246,46 @@ CSRF_COOKIE_DOMAIN = AUTH_COOKIE_DOMAIN
 SESSION_COOKIE_SECURE = AUTH_COOKIE_SECURE
 SESSION_COOKIE_SAMESITE = AUTH_COOKIE_SAMESITE
 SESSION_COOKIE_DOMAIN = AUTH_COOKIE_DOMAIN
+
+# ─── Cache ───────────────────────────────────────────────────────────────────
+# Rate limit counters live here, so this backend has to be **shared between
+# processes**. gunicorn runs three workers; on Django's default LocMemCache each
+# would keep its own counter, making every limit three times what it says and
+# resetting it on every reload.
+#
+# `dbcache://` uses the Postgres already in the stack and needs no new service —
+# create the table once with `manage.py createcachetable`. Set CACHE_URL to a
+# `rediscache://` URL instead if one is available.
+CACHES = {"default": env.cache("CACHE_URL", default="locmemcache://")}
+
+# ─── Rate limiting ───────────────────────────────────────────────────────────
+# Every rate is configuration, not a constant: what counts as abusive differs
+# between a launch, a marketing push and a quiet Tuesday, and none of those
+# should need a deploy.
+#
+# Format is `<count>/<period>` — 5/m, 10/5m, 100/h, 1000/d.
+RATELIMIT_ENABLE = env.bool("RATELIMIT_ENABLE", default=True)
+
+# Which request header carries the real client address. See apps/api/ratelimit.py
+# — behind Cloudflare this must be HTTP_CF_CONNECTING_IP or every visitor through
+# one edge shares a bucket.
+RATELIMIT_TRUSTED_IP_HEADER = env("RATELIMIT_TRUSTED_IP_HEADER", default="") or None
+
+# Resolve the address through our own function rather than a META key, so a
+# missing header degrades instead of raising ImproperlyConfigured mid-request.
+RATELIMIT_IP_META_KEY = "archethosbackend.apps.api.ratelimit.client_ip"
+
+#: Per IP. Generous for someone who mistypes a password, useless for a script.
+RATELIMIT_LOGIN_IP = env("RATELIMIT_LOGIN_IP", default="10/5m")
+#: Per account, so a distributed attack on one login is capped even when each
+#: source address stays under the per-IP limit.
+RATELIMIT_LOGIN_USER = env("RATELIMIT_LOGIN_USER", default="5/15m")
+#: Refresh is cheap but unauthenticated in effect — the cookie is the credential.
+RATELIMIT_REFRESH = env("RATELIMIT_REFRESH", default="60/h")
+#: Changing a password requires the current one, so this is brute-force cover.
+RATELIMIT_PASSWORD_CHANGE = env("RATELIMIT_PASSWORD_CHANGE", default="5/h")
+#: The public contact form — the only place an anonymous visitor writes.
+RATELIMIT_ENQUIRY = env("RATELIMIT_ENQUIRY", default="10/h")
 
 # ─── OpenAPI schema ──────────────────────────────────────────────────────────
 SPECTACULAR_SETTINGS = {
