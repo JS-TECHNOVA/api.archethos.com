@@ -44,8 +44,17 @@ from archethosbackend.apps.enquiries.views import (
 
 from archethosbackend.apps.pages.admin_views import (
     CompanyAPIView,
-    PageDetailAPIView,
     PageListAPIView,
+    HomePageAPIView,
+    AboutPageAPIView,
+    ServicesPageAPIView,
+    ProjectsPageAPIView,
+    GalleryPageAPIView,
+    JournalPageAPIView,
+    LocationsPageAPIView,
+    ContactPageAPIView,
+    PrivacyPageAPIView,
+    TermsPageAPIView,
 )
 
 from archethosbackend.apps.media_library.views import (
@@ -162,11 +171,22 @@ urlpatterns = [
     path("counters/<int:pk>/", CounterDetailAPIView.as_view(), name="counter-detail"),
     # ── Sections ──────────────────────────────────────────────────────────────
     # ── Pages ────────────────────────────────────────────────────────────────
-    # Ten fixed pages, addressed by their public route. No create, no delete:
-    # the site's structure is code, and `ensure_pages` makes the rows.
-    # <path:route> not <slug:route> — "legal/privacy" contains a slash.
+    # One model, one view, one URL. Written out rather than resolved through a
+    # dynamic segment, so the ten endpoints are visible here and an unknown
+    # route is a 404 from the resolver rather than a lookup that missed.
+    # No create, no delete: the structure is code, and `ensure_pages` makes the
+    # rows.
     path("pages/", PageListAPIView.as_view(), name="page-list"),
-    path("pages/<path:route>/", PageDetailAPIView.as_view(), name="page-detail"),
+    path("pages/home/", HomePageAPIView.as_view(), name="page-home"),
+    path("pages/about/", AboutPageAPIView.as_view(), name="page-about"),
+    path("pages/services/", ServicesPageAPIView.as_view(), name="page-services"),
+    path("pages/projects/", ProjectsPageAPIView.as_view(), name="page-projects"),
+    path("pages/gallery/", GalleryPageAPIView.as_view(), name="page-gallery"),
+    path("pages/journal/", JournalPageAPIView.as_view(), name="page-journal"),
+    path("pages/locations/", LocationsPageAPIView.as_view(), name="page-locations"),
+    path("pages/contact/", ContactPageAPIView.as_view(), name="page-contact"),
+    path("pages/legal/privacy/", PrivacyPageAPIView.as_view(), name="page-legal-privacy"),
+    path("pages/legal/terms/", TermsPageAPIView.as_view(), name="page-legal-terms"),
     # Master data added by the page refactor: both were hardcoded in the
     # frontend and are now edited once and referenced from several pages.
     path("gallery/", GalleryItemListCreateAPIView.as_view(), name="gallery-list"),

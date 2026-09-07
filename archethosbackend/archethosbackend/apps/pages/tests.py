@@ -24,6 +24,17 @@ from archethosbackend.apps.pages.models import (
     StatsSection,
 )
 
+def page_url(route, public=False):
+    """The URL for a page, from its public route.
+
+    Each page has its own named endpoint now — `v1:admin:page-home`,
+    `v1:admin:page-legal-privacy` — so this maps the route the tests speak in
+    onto the name the resolver wants.
+    """
+    space = "public" if public else "admin"
+    return reverse(f"v1:{space}:page-" + route.replace("/", "-"))
+
+
 PASSWORD = "correct-horse-battery-staple"
 
 
@@ -54,7 +65,7 @@ class AdminTestCase(TestCase):
 
     def patch(self, route, payload):
         return self.client_.patch(
-            reverse("v1:admin:page-detail", args=[route]),
+            page_url(route),
             payload,
             content_type="application/json",
         )
@@ -119,25 +130,28 @@ class PageReadTests(AdminTestCase):
         """An editor must get a blank form, not a 404 they cannot act on."""
         self.assertFalse(HomePage.objects.exists())
 
-        response = self.client_.get(reverse("v1:admin:page-detail", args=["home"]))
+        response = self.client_.get(page_url("home"))
 
         self.assertEqual(response.status_code, 200, response.content)
         self.assertTrue(HomePage.objects.exists())
 
     def test_the_payload_names_every_section(self):
         data = self.client_.get(
-            reverse("v1:admin:page-detail", args=["home"])
+            page_url("home")
         ).json()["data"]
 
         for section in ("hero", "intro", "stats", "services", "cta"):
             self.assertIn(section, data)
 
-    def test_an_unknown_route_says_what_the_site_actually_has(self):
-        response = self.client_.get(
-            reverse("v1:admin:page-detail", args=["shop"])
-        )
+    def test_an_unknown_route_is_not_routed_at_all(self):
+        """There is no dynamic segment to miss.
+
+        Each page has its own URL, so `/pages/shop/` never reaches a view — it
+        is a 404 from the resolver. That is the property worth pinning: a page
+        the site does not have cannot be *asked for*, let alone half-handled.
+        """
+        response = self.client_.get("/api/v1/admin/pages/shop/")
         self.assertEqual(response.status_code, 404)
-        self.assertIn("home", response.json()["message"])
 
     def test_the_page_list_is_in_navigation_order(self):
         rows = self.client_.get(reverse("v1:admin:page-list")).json()["data"]
@@ -228,7 +242,7 @@ class MasterDataTests(AdminTestCase):
         self.patch("home", {"services": {"items": [{"service": service.pk}]}})
 
         data = self.client_.get(
-            reverse("v1:admin:page-detail", args=["home"])
+            page_url("home")
         ).json()["data"]
 
         self.assertEqual(data["services"]["items"][0]["detail"]["title"], "Architecture")
@@ -251,7 +265,7 @@ class MasterDataTests(AdminTestCase):
         service.save()
 
         data = self.client_.get(
-            reverse("v1:admin:page-detail", args=["home"])
+            page_url("home")
         ).json()["data"]
         self.assertEqual(
             data["services"]["items"][0]["detail"]["title"], "Architecture Design"
@@ -292,7 +306,7 @@ class PublishingTests(AdminTestCase):
 
     def test_the_admin_is_told_what_is_missing(self):
         data = self.client_.get(
-            reverse("v1:admin:page-detail", args=["home"])
+            page_url("home")
         ).json()["data"]
         self.assertEqual(sorted(data["missing_sections"]), ["cta", "hero", "intro"])
 
@@ -322,13 +336,13 @@ class PublicTests(AdminTestCase):
 
     def test_an_unpublished_page_is_a_404(self):
         """Indistinguishable from a page that does not exist."""
-        response = self.client.get(reverse("v1:public:page-detail", args=["home"]))
+        response = self.client.get(page_url("home", public=True))
         self.assertEqual(response.status_code, 404)
 
     def test_a_published_page_is_served_without_authentication(self):
         self.publish_home()
 
-        response = self.client.get(reverse("v1:public:page-detail", args=["home"]))
+        response = self.client.get(page_url("home", public=True))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["data"]["hero"]["slides"][0]["heading"], "Archethos")
@@ -337,7 +351,7 @@ class PublicTests(AdminTestCase):
         self.publish_home()
 
         data = self.client.get(
-            reverse("v1:public:page-detail", args=["home"])
+            page_url("home", public=True)
         ).json()["data"]
 
         for key in ("is_published", "missing_sections", "id", "updated_at"):
@@ -350,7 +364,7 @@ class PublicTests(AdminTestCase):
         self.publish_home()
 
         data = self.client.get(
-            reverse("v1:public:page-detail", args=["home"])
+            page_url("home", public=True)
         ).json()["data"]
 
         item = data["stats"]["items"][0]
@@ -405,7 +419,7 @@ class QueryCountTests(AdminTestCase):
 
     def test_reading_a_page_is_flat_in_the_number_of_items(self):
         self.populate(services=3, counters=3, gallery=3, locations=2)
-        url = reverse("v1:public:page-detail", args=["home"])
+        url = page_url("home", public=True)
 
         small = self._count(url)
 

@@ -7,8 +7,17 @@ from archethosbackend.apps.enquiries.views import EnquirySubmitAPIView
 
 from archethosbackend.apps.pages.public_views import (
     PublicCompanyAPIView,
-    PublicPageAPIView,
     PublicPageIndexAPIView,
+    PublicHomePageAPIView,
+    PublicAboutPageAPIView,
+    PublicServicesPageAPIView,
+    PublicProjectsPageAPIView,
+    PublicGalleryPageAPIView,
+    PublicJournalPageAPIView,
+    PublicLocationsPageAPIView,
+    PublicContactPageAPIView,
+    PublicPrivacyPageAPIView,
+    PublicTermsPageAPIView,
 )
 
 from archethosbackend.apps.content.public_views import (
@@ -26,11 +35,19 @@ from archethosbackend.apps.content.public_views import (
 )
 
 urlpatterns = [
-    # One request renders a whole route. <path:route> not <slug:route> — page
-    # routes mirror the frontend's, which nest ("legal/privacy"), and the slug
-    # converter does not match "/".
+    # One request renders a whole route. One view per page, matching the admin
+    # side — see pages/public_views.py.
     path("pages/", PublicPageIndexAPIView.as_view(), name="page-index"),
-    path("pages/<path:route>/", PublicPageAPIView.as_view(), name="page-detail"),
+    path("pages/home/", PublicHomePageAPIView.as_view(), name="page-home"),
+    path("pages/about/", PublicAboutPageAPIView.as_view(), name="page-about"),
+    path("pages/services/", PublicServicesPageAPIView.as_view(), name="page-services"),
+    path("pages/projects/", PublicProjectsPageAPIView.as_view(), name="page-projects"),
+    path("pages/gallery/", PublicGalleryPageAPIView.as_view(), name="page-gallery"),
+    path("pages/journal/", PublicJournalPageAPIView.as_view(), name="page-journal"),
+    path("pages/locations/", PublicLocationsPageAPIView.as_view(), name="page-locations"),
+    path("pages/contact/", PublicContactPageAPIView.as_view(), name="page-contact"),
+    path("pages/legal/privacy/", PublicPrivacyPageAPIView.as_view(), name="page-legal-privacy"),
+    path("pages/legal/terms/", PublicTermsPageAPIView.as_view(), name="page-legal-terms"),
     path("company/", PublicCompanyAPIView.as_view(), name="company"),
     path("projects/", PublicProjectListAPIView.as_view(), name="project-list"),
     path(

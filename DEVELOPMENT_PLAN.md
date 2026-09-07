@@ -524,14 +524,14 @@ roles grant whatever models exist when they are synced.
 
 `SECTION_REGISTRY` is deleted, on both sides. Nothing dispatches on a type string.
 
-What remains is `ORDERED_PAGES` - a route to model map, and its serializer twin
-`PAGE_SERIALIZERS`. The two are asserted equal at import, so a page without a serializer fails
-at boot rather than 404-ing in production with no clue why.
+Nothing replaced it on the request path. Each page has its own view class, its own URL and
+its own serializer, so there is no map to consult: which page you are looking at is which
+class you are reading.
 
-The difference matters. A registry resolved *content* to a renderer at runtime, which meant
-the set of section types was data and the frontend had to be generic. This maps a *route* to a
-component, over a closed set of ten, all of which are written out. A missing key is a bug, not
-a content problem.
+`ORDERED_PAGES` remains as an *inventory* — the list endpoint renders it and `ensure_pages`
+walks it — but no request resolves through it. That is the distinction worth holding onto: a
+registry decided at runtime what code to run; a list of ten things the site has decides
+nothing.
 
 The frontend mirror is `PAGE_EDITORS` in the admin, and nothing at all on the website: the
 public pages import their sections directly.
@@ -654,15 +654,24 @@ because `order` carries no constraint (§2.3).
 
 ## 13. Page API
 
-One endpoint per page, addressed by its public route:
+One model, one view, one URL — all ten written out:
 
 ```
+HomePage   ->  HomePageAPIView   ->  /api/v1/admin/pages/home/
+AboutPage  ->  AboutPageAPIView  ->  /api/v1/admin/pages/about/
+...
 GET   /api/v1/admin/pages/            the ten pages with publish state
-GET   /api/v1/admin/pages/home/       the whole page, every section
-PATCH /api/v1/admin/pages/home/       partial write, one transaction
-GET   /api/v1/public/pages/home/      published only, 404 otherwise
+GET   /api/v1/admin/pages/{route}/    the whole page, every section
+PATCH /api/v1/admin/pages/{route}/    partial write, one transaction
+GET   /api/v1/public/pages/{route}/   published only, 404 otherwise
 GET   /api/v1/public/pages/           which routes are live
 ```
+
+Not one dynamic segment resolving through a map: each view names its own model
+and its own serializer, so `/pages/shop/` is a 404 from the URL resolver rather
+than a lookup that missed, and the ten endpoints are visible in the route table.
+`ORDERED_PAGES` survives only as the inventory the list endpoint and
+`ensure_pages` walk — nothing is dispatched through it.
 
 No create, no delete. The site has ten pages, declared in code.
 
