@@ -213,18 +213,3 @@ class TermsPageSerializer(CommonPageFields):
     class Meta:
         model = TermsPage
         fields = META + SEO + ["body"]
-
-
-#: Route → serializer. Paired with `ORDERED_PAGES`; the view checks they agree.
-PAGE_SERIALIZERS = {
-    "home": HomePageSerializer,
-    "about": AboutPageSerializer,
-    "services": ServicesPageSerializer,
-    "projects": ProjectsPageSerializer,
-    "gallery": GalleryPageSerializer,
-    "journal": JournalPageSerializer,
-    "locations": LocationsPageSerializer,
-    "contact": ContactPageSerializer,
-    "legal/privacy": PrivacyPageSerializer,
-    "legal/terms": TermsPageSerializer,
-}

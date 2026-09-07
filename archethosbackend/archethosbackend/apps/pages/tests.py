@@ -74,10 +74,22 @@ class AdminTestCase(TestCase):
 class StructureTests(TestCase):
     """The site's shape is code. These are the invariants that makes true."""
 
-    def test_every_route_has_a_model_and_a_serializer(self):
-        from archethosbackend.apps.pages.serializers.pages import PAGE_SERIALIZERS
+    def test_every_page_has_its_own_endpoint(self):
+        """Model, view, URL and serializer, wired end to end.
 
-        self.assertEqual(set(ORDERED_PAGES), set(PAGE_SERIALIZERS))
+        Stronger than the dict-equality check this replaced: it resolves the
+        real URL and asserts the view behind it is bound to the right model. A
+        page wired to the wrong serializer, or missing a route entirely, fails
+        here rather than in production.
+        """
+        from django.urls import resolve
+
+        for route, model in ORDERED_PAGES.items():
+            for public in (False, True):
+                with self.subTest(route=route, public=public):
+                    view = resolve(page_url(route, public=public)).func.view_class
+                    self.assertIs(view.page_model, model)
+                    self.assertIsNotNone(view.serializer_class)
 
     def test_a_pages_fields_are_its_render_order(self):
         """`HomePage` read top to bottom is the home page top to bottom.

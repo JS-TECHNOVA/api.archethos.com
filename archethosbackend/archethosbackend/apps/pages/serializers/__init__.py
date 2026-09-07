@@ -7,7 +7,6 @@ from .company import (
     PublicCompanySerializer,
 )
 from .pages import (
-    PAGE_SERIALIZERS,
     AboutPageSerializer,
     ContactPageSerializer,
     GalleryPageSerializer,
@@ -21,7 +20,6 @@ from .pages import (
 )
 
 __all__ = [
-    "PAGE_SERIALIZERS",
     "AboutPageSerializer",
     "CompanySerializer",
     "CompanyWriteSerializer",

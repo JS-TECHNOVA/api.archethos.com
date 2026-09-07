@@ -100,10 +100,6 @@ class AdminRetrieveUpdateAPIView(AdminAPIViewMixin, generics.RetrieveUpdateAPIVi
     read_mode = "detail"
 
 
-class AdminRetrieveAPIView(AdminAPIViewMixin, generics.RetrieveAPIView):
-    read_mode = "detail"
-
-
 class ReorderAPIView(APIView):
     """Atomic bulk reorder of an ordered child collection.
 

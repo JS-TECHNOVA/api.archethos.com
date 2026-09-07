@@ -17,7 +17,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.db import transaction
 
-from .models import MediaAsset, SourceType
+from .models import SourceType
 from .validators import extension_of, validate_upload
 
 

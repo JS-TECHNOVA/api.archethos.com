@@ -13,7 +13,14 @@ from django.utils import timezone
 from archethosbackend.apps.core.models import PublishStatus
 from archethosbackend.apps.media_library.models import MediaAsset, MediaType, SourceType
 
-from .models import FAQ, BlogCategory, BlogPost, Counter, Project, ProjectGalleryItem, Service
+from .models import (
+    BlogCategory,
+    BlogPost,
+    Counter,
+    Project,
+    ProjectGalleryItem,
+    Service,
+)
 
 
 class ContentTestCase(TestCase):
