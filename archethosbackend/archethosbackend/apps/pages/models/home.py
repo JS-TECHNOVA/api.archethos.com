@@ -13,7 +13,7 @@ from django.db import models
 from archethosbackend.apps.core.models import OrderedItemModel, TimeStampedModel
 
 from .base import SectionedPage
-from .shared import CTASection, HeroSection, SectionHeading, Tone, section
+from .shared import CTASection, HeroSection, SectionHeading, section
 
 
 class HomeIntroSection(SectionHeading, TimeStampedModel):
@@ -42,8 +42,6 @@ class HomeIntroSection(SectionHeading, TimeStampedModel):
 
 class StatsSection(SectionHeading, TimeStampedModel):
     """The "at a glance" band. The figures themselves are master data."""
-
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.INK)
 
     def __str__(self):
         return self.eyebrow or "Statistics"
@@ -89,7 +87,7 @@ class FeaturedProjectSection(SectionHeading, TimeStampedModel):
 
 
 class HomeServicesSection(SectionHeading, TimeStampedModel):
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
+    """Which services the home page leads with."""
 
     def __str__(self):
         return self.heading or "Services"
@@ -119,7 +117,6 @@ class DesignBuildSection(SectionHeading, TimeStampedModel):
     """Why the studio draws and builds the same project."""
 
     body = models.TextField(blank=True)
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.INK)
 
     media = models.ForeignKey(
         "media_library.MediaAsset",
@@ -150,7 +147,7 @@ class DesignBuildPoint(OrderedItemModel, TimeStampedModel):
 
 
 class HomeProjectsSection(SectionHeading, TimeStampedModel):
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
+    """A short selection of work, below the featured project."""
 
     def __str__(self):
         return self.heading or "Selected work"
@@ -210,7 +207,6 @@ class VastuSection(SectionHeading, TimeStampedModel):
 
     statement = models.TextField(blank=True)
     body = models.TextField(blank=True)
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE_DEEP)
 
     media = models.ForeignKey(
         "media_library.MediaAsset",
@@ -225,9 +221,7 @@ class VastuSection(SectionHeading, TimeStampedModel):
 
 
 class HomeLocationsSection(SectionHeading, TimeStampedModel):
-    LAYOUT_CHOICES = [("grid", "Grid"), ("stacked", "Stacked")]
-
-    layout = models.CharField(max_length=16, choices=LAYOUT_CHOICES, default="grid")
+    """The two cities, previewed. The records are master data."""
 
     def __str__(self):
         return self.heading or "Locations"

@@ -77,8 +77,8 @@ Two escape hatches survive where they genuinely pay:
 
 * **Shared section models.** Hero, CTA, Process and RichText are one model each, reused
   wherever the structure is *genuinely identical*. Each page still holds its own row.
-* **Variants.** A section that has several designs carries `variant` as a field. The frontend
-  owns the visual implementation; the CMS only chooses between them. No `HeroVariant1` model.
+* **Presentation stays in code.** A page's component already decides how its sections look,
+  so the models carry no `variant`, `tone` or `layout`. See §5.6.
 
 ### 2.3 `order` is display-order only and appears in no constraint
 
@@ -319,9 +319,9 @@ miniature - it would invite a third row that nothing renders.
 
 | Model | Fields | Children |
 |---|---|---|
-| `HeroSection` | variant, autoplay_seconds | `HeroSlide` (eyebrow, heading, lead, media) |
+| `HeroSection` | autoplay_seconds | `HeroSlide` (eyebrow, heading, lead, media) |
 | `CTASection` | heading block, body, media, two links | - |
-| `ProcessSection` | heading block, tone | `ProcessStep` (number, title, body) |
+| `ProcessSection` | heading block | `ProcessStep` (number, title, body) |
 | `RichTextSection` | heading block, intro, updated_on | `RichTextBlock` (title, body) |
 
 **Page-specific** - one module per page. Sections that list master data hold an item model and
@@ -345,12 +345,45 @@ An explicit item model rather than a plain `ManyToManyField`, because ordering i
 and there is room for per-section configuration later. Each carries a unique constraint on
 `(section, record)` so a section cannot list the same thing twice.
 
-### 5.6 Variants
+### 5.6 No variant, tone or layout columns
 
-A section with several designs carries `variant` as a `TextChoices` field. `HeroSection` has
-`PHOTOGRAPHIC` and `SLIDER`. There is no `HeroVariant1` model and no variant table - the
-frontend owns the components, the CMS picks between them, and adding a design is a component
-plus a choice member.
+The models carry no presentation fields, and this reverses the original brief's §11, which
+asked for `variant` on the section. That instruction was right for the architecture it was
+written against: one `HeroSection` served all nine pages, so the row was the only thing that
+could say which design to render.
+
+A model per page removed that need. `HomePage.hero` is a row only the home page reads,
+rendered by a component only the home page uses — **the page is the variant**. The frontend
+proves it:
+
+```jsx
+home-hero.jsx     <SliderSection variant="SLIDER" …>   // hardcoded
+about/page.js     <SliderSection …>                    // no variant, single frame
+studio-story.jsx  <Section tone="bone" …>              // hardcoded
+stats-band.jsx    <Section tone="ink" …>               // hardcoded
+```
+
+Nothing read those columns. 23 of them — one `variant`, 19 `tone`, three `layout` — stored a
+value the site ignored, which is worse than a missing field: it renders as a control in the
+admin, an editor sets it, and nothing happens. An unfalsifiable setting is a bug with a UI.
+
+**The rule.** If the component already hardcodes it, it belongs in code. If an editor could
+reasonably want it different next month without a designer involved, it belongs in the CMS.
+What survived that test:
+
+| Kept | Why |
+|---|---|
+| `autoplay_seconds` | pacing is a real preference |
+| `show_filter` | "hide the filter, there are only four items" is a decision |
+| `statement_lines`, `title_lines` | where a headline breaks is editorial |
+| `MissionVisionBlock.side` | per-block, and the design alternates it |
+| `content.Project.layout` | **per record**, not per page — `project-grid.jsx` genuinely reads it to decide which project gets a full-width card |
+
+That last row is the distinction the whole section turns on: `Project.layout` varies between
+records within one page, so no component can hardcode it. A section's tone does not.
+
+Adding a design now means a component and, if the page needs to choose between two, a field on
+that page's own section — added deliberately, where it will actually be read.
 
 ### 5.7 enquiries
 

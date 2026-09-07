@@ -509,7 +509,6 @@ class Command(BaseCommand):
 
     def hero(self, spec):
         section = page_models.HeroSection.objects.create(
-            variant=spec["variant"],
             autoplay_seconds=spec.get("autoplay_seconds", "6.5"),
         )
         self.replace(
@@ -546,7 +545,6 @@ class Command(BaseCommand):
             eyebrow=spec.get("eyebrow") or "",
             heading=spec.get("heading") or "",
             lead=spec.get("lead") or "",
-            tone=spec.get("tone", "ink"),
         )
         self.replace(
             section.steps,
@@ -664,9 +662,7 @@ class Command(BaseCommand):
         )
 
         studio = self.data["studio"]
-        mission_vision = page_models.MissionVisionSection.objects.create(
-            tone="bone-deep"
-        )
+        mission_vision = page_models.MissionVisionSection.objects.create()
         self.replace(
             mission_vision.blocks,
             page_models.MissionVisionBlock,
@@ -706,7 +702,6 @@ class Command(BaseCommand):
             eyebrow="The studio",
             heading="Design and build, held together.",
             body=self.data["company"]["company"].get("statement") or "",
-            tone="bone",
             media=self.asset("timberGateway"),
         )
 
@@ -746,7 +741,6 @@ class Command(BaseCommand):
                 "Residential, commercial and interior work, filtered by the kind "
                 "of project rather than the year."
             ),
-            tone="bone",
         )
         # Left uncurated: an empty selection means every published project, so a
         # new one appears without anyone remembering this screen.
@@ -761,7 +755,6 @@ class Command(BaseCommand):
         grid = page_models.GalleryGridSection.objects.create(
             eyebrow="Archethos / Gallery",
             heading="The full set.",
-            tone="bone",
         )
         self.items(
             grid,
@@ -781,7 +774,6 @@ class Command(BaseCommand):
         featured = page_models.JournalFeaturedSection.objects.create(
             eyebrow="Featured",
             heading="Worth starting with.",
-            tone="bone",
         )
         self.items(
             featured,
@@ -793,7 +785,6 @@ class Command(BaseCommand):
         listing = page_models.JournalListSection.objects.create(
             eyebrow="All entries",
             heading="Everything the studio has written.",
-            tone="bone-deep",
         )
 
         self.page(
@@ -808,8 +799,6 @@ class Command(BaseCommand):
         listing = page_models.LocationsListSection.objects.create(
             eyebrow="Where we work",
             heading="Two cities, one studio.",
-            layout="stacked",
-            tone="bone",
         )
         self.items(
             listing,
@@ -825,7 +814,6 @@ class Command(BaseCommand):
                 "We have not published a street address yet. Send an enquiry and "
                 "we will arrange to meet — on the plot where possible."
             ),
-            tone="bone-deep",
         )
 
         self.page(
@@ -840,7 +828,6 @@ class Command(BaseCommand):
         form_spec = dict(copy.CONTACT_FORM)
         form = page_models.ContactFormSection.objects.create(
             heading=form_spec["heading"],
-            tone=form_spec["tone"],
             media=self.asset(form_spec["media"]),
             submit_label="Send enquiry",
             success_message=(
@@ -861,7 +848,6 @@ class Command(BaseCommand):
         what_happens = page_models.WhatHappensSection.objects.create(
             eyebrow=copy.CONTACT_WHAT_HAPPENS["eyebrow"],
             heading=copy.CONTACT_WHAT_HAPPENS["heading"],
-            tone=copy.CONTACT_WHAT_HAPPENS["tone"],
         )
         self.replace(
             what_happens.steps,

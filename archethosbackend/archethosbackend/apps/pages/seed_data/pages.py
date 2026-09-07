@@ -14,7 +14,6 @@ those to `MediaAsset` rows.
 # components/sections/hero/home-hero.jsx
 
 HOME_HERO = {
-    "variant": "SLIDER",
     "autoplay_seconds": "6.5",
     "slides": [
         {
@@ -74,21 +73,19 @@ HOME_INTRO = {
     "link_url": "/about",
 }
 
-HOME_STATS = {"eyebrow": "Archethos / At a glance", "tone": "ink"}
+HOME_STATS = {"eyebrow": "Archethos / At a glance"}
 
 HOME_SERVICES = {
     "eyebrow": "Services",
     "heading": "From the first sketch to the finished space.",
     "link_label": "All services",
     "link_url": "/services",
-    "tone": "bone",
 }
 
 HOME_PROJECTS = {
     "eyebrow": "Selected work",
     "link_label": "All projects",
     "link_url": "/projects",
-    "tone": "bone",
 }
 
 HOME_GALLERY = {"eyebrow": "Archethos / Gallery", "autoplay_seconds": "6.5"}
@@ -98,14 +95,12 @@ HOME_LOCATIONS = {
     "heading": "Working from Lucknow and Kushinagar.",
     "link_label": "Our locations",
     "link_url": "/locations",
-    "layout": "grid",
 }
 
 # ─── About ───────────────────────────────────────────────────────────────────
 # app/(website)/about/page.js
 
 ABOUT_HERO = {
-    "variant": "PHOTOGRAPHIC",
     "slides": [
         {
             "eyebrow": "Archethos / Studio",
@@ -122,7 +117,6 @@ ABOUT_HERO = {
 ABOUT_PROCESS = {
     "eyebrow": "Our approach",
     "heading": "Four stages, and the design survives all of them.",
-    "tone": "bone-deep",
     "steps": [
         {
             "number": "01",
@@ -168,8 +162,6 @@ ABOUT_PRESENCE = {
     ),
     "link_label": "Our locations",
     "link_url": "/locations",
-    "layout": "stacked",
-    "tone": "bone",
 }
 
 ABOUT_CTA = {
@@ -183,7 +175,6 @@ ABOUT_CTA = {
 # app/(website)/services/page.js
 
 SERVICES_HERO = {
-    "variant": "PHOTOGRAPHIC",
     "slides": [
         {
             "eyebrow": "Archethos / Services",
@@ -205,13 +196,11 @@ SERVICES_INDEX = {
         "Each discipline stands on its own, and most projects use more than one. "
         "Where they overlap is usually where the value is."
     ),
-    "tone": "bone",
 }
 
 SERVICES_PROCESS = {
     "eyebrow": "How a project moves",
     "heading": "The same four stages, whichever service opens the work.",
-    "tone": "ink",
     "steps": [
         {
             "number": "01",
@@ -247,7 +236,6 @@ SERVICES_CTA = {
 # app/(website)/contact/page.js
 
 CONTACT_HERO = {
-    "variant": "PHOTOGRAPHIC",
     "slides": [
         {
             # The eyebrow is built from Company.cities in the component.
@@ -264,14 +252,12 @@ CONTACT_HERO = {
 
 CONTACT_FORM = {
     "heading": "Start a project",
-    "tone": "bone",
     "media": "archAlcove",
 }
 
 CONTACT_WHAT_HAPPENS = {
     "eyebrow": "After you send it",
     "heading": "What happens next.",
-    "tone": "ink",
     "steps": [
         {
             "number": "01",
@@ -304,7 +290,6 @@ CONTACT_WHAT_HAPPENS = {
 # Each opens with a single-frame hero, transcribed from its page.js.
 
 PROJECTS_HERO = {
-    "variant": "PHOTOGRAPHIC",
     "slides": [
         {
             "eyebrow": "Archethos / Projects",
@@ -319,7 +304,6 @@ PROJECTS_HERO = {
 }
 
 GALLERY_HERO = {
-    "variant": "PHOTOGRAPHIC",
     "slides": [
         {
             "eyebrow": "Archethos / Gallery",
@@ -335,7 +319,6 @@ GALLERY_HERO = {
 }
 
 JOURNAL_HERO = {
-    "variant": "PHOTOGRAPHIC",
     "slides": [
         {
             "eyebrow": "Archethos / Journal",
@@ -350,7 +333,6 @@ JOURNAL_HERO = {
 }
 
 LOCATIONS_HERO = {
-    "variant": "PHOTOGRAPHIC",
     "slides": [
         {
             "eyebrow": "Lucknow / Kushinagar / India",

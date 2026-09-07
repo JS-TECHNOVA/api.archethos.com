@@ -11,11 +11,10 @@ from django.db import models
 from archethosbackend.apps.core.models import OrderedItemModel, TimeStampedModel
 
 from .base import SectionedPage
-from .shared import CTASection, HeroSection, SectionHeading, Tone, section
+from .shared import CTASection, HeroSection, SectionHeading, section
 
 
 class GalleryGridSection(SectionHeading, TimeStampedModel):
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
     show_filter = models.BooleanField(
         default=True, help_text="Render the category filter above the grid."
     )

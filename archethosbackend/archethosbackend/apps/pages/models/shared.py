@@ -15,19 +15,6 @@ from django.db import models
 from archethosbackend.apps.core.models import OrderedItemModel, TimeStampedModel
 
 
-class Tone(models.TextChoices):
-    """The background the frontend paints a section on.
-
-    A design choice the studio makes per section, not a structural one, so it
-    lives in the CMS rather than in the component.
-    """
-
-    BONE = "bone", "Bone"
-    BONE_DEEP = "bone-deep", "Bone (deep)"
-    INK = "ink", "Ink"
-    WHITE = "white", "White"
-
-
 class SectionHeading(models.Model):
     """Eyebrow / heading / lead / link — the standard block above a section.
 
@@ -47,31 +34,21 @@ class SectionHeading(models.Model):
         abstract = True
 
 
-class HeroVariant(models.TextChoices):
-    """Which hero component the frontend renders.
-
-    The variant is a name the frontend owns; the CMS only chooses between them.
-    Adding a design means adding a component and a member here — not a model.
-    """
-
-    PHOTOGRAPHIC = "PHOTOGRAPHIC", "Photographic (single frame)"
-    SLIDER = "SLIDER", "Slider (auto-advancing)"
-
-
 class HeroSection(TimeStampedModel):
     """The opening frame of a page.
 
-    Slides are a child table even for the single-frame variant, because a
-    photographic hero is a slider with one slide — modelling it as nullable
-    fields on the section and *also* as slides would give two places to look.
+    Slides are a child table even where the design shows one, because a static
+    hero is a slider with a single slide — modelling it as nullable fields on
+    the section *and* as slides would give two places to look.
+
+    There is no `variant` field. Whether this renders as one frame or advances
+    through several is the page's own decision, written into its component: the
+    home page's hero is a slider and the about page's is not, and no value stored
+    here would change that. A column the site never reads is worse than a missing
+    one, because it looks like a setting.
     """
 
-    variant = models.CharField(
-        max_length=16,
-        choices=HeroVariant.choices,
-        default=HeroVariant.PHOTOGRAPHIC,
-    )
-    #: Only read for the SLIDER variant.
+    #: Only meaningful where the page renders a slider; harmless elsewhere.
     autoplay_seconds = models.DecimalField(
         max_digits=4, decimal_places=1, default=6.5
     )
@@ -128,8 +105,6 @@ class ProcessSection(SectionHeading, TimeStampedModel):
     Shared by the about and services pages, which describe the same four-stage
     process in different words. Same structure, two rows.
     """
-
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.INK)
 
     def __str__(self):
         return self.heading or "Process"

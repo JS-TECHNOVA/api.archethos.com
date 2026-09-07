@@ -11,13 +11,11 @@ from django.db import models
 from archethosbackend.apps.core.models import OrderedItemModel, TimeStampedModel
 
 from .base import SectionedPage
-from .shared import CTASection, HeroSection, SectionHeading, Tone, section
+from .shared import CTASection, HeroSection, SectionHeading, section
 
 
 class ContactFormSection(SectionHeading, TimeStampedModel):
     """The enquiry form and the copy framing it."""
-
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
 
     submit_label = models.CharField(max_length=120, blank=True)
     success_message = models.TextField(
@@ -59,8 +57,6 @@ class ContactDetailsSection(SectionHeading, TimeStampedModel):
 
 class WhatHappensSection(SectionHeading, TimeStampedModel):
     """What the studio does after an enquiry arrives."""
-
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.INK)
 
     def __str__(self):
         return self.heading or "What happens next"

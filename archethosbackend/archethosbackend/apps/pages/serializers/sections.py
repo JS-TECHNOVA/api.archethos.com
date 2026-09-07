@@ -263,7 +263,7 @@ class HeroSectionSerializer(SectionSerializer):
 
     class Meta:
         model = HeroSection
-        fields = ["variant", "autoplay_seconds", "slides"]
+        fields = ["autoplay_seconds", "slides"]
 
 
 class CTASectionSerializer(SectionSerializer):
@@ -282,7 +282,7 @@ class ProcessSectionSerializer(SectionSerializer):
 
     class Meta:
         model = ProcessSection
-        fields = HEADING + ["tone", "steps"]
+        fields = HEADING + ["steps"]
 
 
 class RichTextSectionSerializer(SectionSerializer):
@@ -311,7 +311,7 @@ class StatsSectionSerializer(SectionSerializer):
 
     class Meta:
         model = StatsSection
-        fields = HEADING + ["tone", "items"]
+        fields = HEADING + ["items"]
 
 
 class FeaturedProjectSectionSerializer(SectionSerializer):
@@ -331,7 +331,7 @@ class HomeServicesSectionSerializer(SectionSerializer):
 
     class Meta:
         model = HomeServicesSection
-        fields = HEADING + ["tone", "items"]
+        fields = HEADING + ["items"]
 
 
 class DesignBuildSectionSerializer(SectionSerializer):
@@ -341,7 +341,7 @@ class DesignBuildSectionSerializer(SectionSerializer):
 
     class Meta:
         model = DesignBuildSection
-        fields = HEADING + ["body", "tone", "media", "points"]
+        fields = HEADING + ["body", "media", "points"]
 
 
 class HomeProjectsSectionSerializer(SectionSerializer):
@@ -350,7 +350,7 @@ class HomeProjectsSectionSerializer(SectionSerializer):
 
     class Meta:
         model = HomeProjectsSection
-        fields = HEADING + ["tone", "items"]
+        fields = HEADING + ["items"]
 
 
 class HomeGallerySectionSerializer(SectionSerializer):
@@ -367,7 +367,7 @@ class VastuSectionSerializer(SectionSerializer):
 
     class Meta:
         model = VastuSection
-        fields = HEADING + ["statement", "body", "tone", "media"]
+        fields = HEADING + ["statement", "body", "media"]
 
 
 class HomeLocationsSectionSerializer(SectionSerializer):
@@ -376,7 +376,7 @@ class HomeLocationsSectionSerializer(SectionSerializer):
 
     class Meta:
         model = HomeLocationsSection
-        fields = HEADING + ["layout", "items"]
+        fields = HEADING + ["items"]
 
 
 # ─── About ───────────────────────────────────────────────────────────────────
@@ -387,7 +387,7 @@ class StudioStorySectionSerializer(SectionSerializer):
 
     class Meta:
         model = StudioStorySection
-        fields = HEADING + ["body", "tone", "media"]
+        fields = HEADING + ["body", "media"]
 
 
 class MissionVisionSectionSerializer(SectionSerializer):
@@ -396,7 +396,7 @@ class MissionVisionSectionSerializer(SectionSerializer):
 
     class Meta:
         model = MissionVisionSection
-        fields = ["tone", "blocks"]
+        fields = ["blocks"]
 
 
 class FounderSectionSerializer(SectionSerializer):
@@ -418,7 +418,7 @@ class PhilosophySectionSerializer(SectionSerializer):
 
     class Meta:
         model = PhilosophySection
-        fields = HEADING + ["statement_lines", "tone", "points"]
+        fields = HEADING + ["statement_lines", "points"]
 
 
 class AboutPresenceSectionSerializer(SectionSerializer):
@@ -427,7 +427,7 @@ class AboutPresenceSectionSerializer(SectionSerializer):
 
     class Meta:
         model = AboutPresenceSection
-        fields = HEADING + ["layout", "tone", "items"]
+        fields = HEADING + ["items"]
 
 
 # ─── Services / Projects / Gallery / Locations / Journal / Contact ───────────
@@ -439,7 +439,7 @@ class ServiceIndexSectionSerializer(SectionSerializer):
 
     class Meta:
         model = ServiceIndexSection
-        fields = HEADING + ["tone", "items"]
+        fields = HEADING + ["items"]
 
 
 class ProjectIndexSectionSerializer(SectionSerializer):
@@ -449,7 +449,7 @@ class ProjectIndexSectionSerializer(SectionSerializer):
 
     class Meta:
         model = ProjectIndexSection
-        fields = HEADING + ["tone", "show_filter", "is_curated", "items"]
+        fields = HEADING + ["show_filter", "is_curated", "items"]
 
 
 class GalleryGridSectionSerializer(SectionSerializer):
@@ -458,7 +458,7 @@ class GalleryGridSectionSerializer(SectionSerializer):
 
     class Meta:
         model = GalleryGridSection
-        fields = HEADING + ["tone", "show_filter", "items"]
+        fields = HEADING + ["show_filter", "items"]
 
 
 class LocationsListSectionSerializer(SectionSerializer):
@@ -467,13 +467,13 @@ class LocationsListSectionSerializer(SectionSerializer):
 
     class Meta:
         model = LocationsListSection
-        fields = HEADING + ["layout", "tone", "items"]
+        fields = HEADING + ["items"]
 
 
 class VisitingSectionSerializer(SectionSerializer):
     class Meta:
         model = VisitingSection
-        fields = HEADING + ["body", "tone"]
+        fields = HEADING + ["body"]
 
 
 class JournalFeaturedSectionSerializer(SectionSerializer):
@@ -482,13 +482,13 @@ class JournalFeaturedSectionSerializer(SectionSerializer):
 
     class Meta:
         model = JournalFeaturedSection
-        fields = HEADING + ["tone", "items"]
+        fields = HEADING + ["items"]
 
 
 class JournalListSectionSerializer(SectionSerializer):
     class Meta:
         model = JournalListSection
-        fields = HEADING + ["tone", "page_size", "show_categories"]
+        fields = HEADING + ["page_size", "show_categories"]
 
 
 class ContactFormSectionSerializer(SectionSerializer):
@@ -497,7 +497,7 @@ class ContactFormSectionSerializer(SectionSerializer):
     class Meta:
         model = ContactFormSection
         fields = HEADING + [
-            "tone", "submit_label", "success_message", "consent_note", "media",
+            "submit_label", "success_message", "consent_note", "media",
         ]
 
 
@@ -513,4 +513,4 @@ class WhatHappensSectionSerializer(SectionSerializer):
 
     class Meta:
         model = WhatHappensSection
-        fields = HEADING + ["tone", "steps"]
+        fields = HEADING + ["steps"]

@@ -16,15 +16,12 @@ from .shared import (
     HeroSection,
     ProcessSection,
     SectionHeading,
-    Tone,
     section,
 )
 
 
 class ServiceIndexSection(SectionHeading, TimeStampedModel):
     """The list of what the studio does."""
-
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
 
     def __str__(self):
         return self.heading or "Service index"

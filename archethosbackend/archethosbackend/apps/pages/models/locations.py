@@ -11,14 +11,11 @@ from django.db import models
 from archethosbackend.apps.core.models import OrderedItemModel, TimeStampedModel
 
 from .base import SectionedPage
-from .shared import CTASection, HeroSection, SectionHeading, Tone, section
+from .shared import CTASection, HeroSection, SectionHeading, section
 
 
 class LocationsListSection(SectionHeading, TimeStampedModel):
-    LAYOUT_CHOICES = [("grid", "Grid"), ("stacked", "Stacked")]
-
-    layout = models.CharField(max_length=16, choices=LAYOUT_CHOICES, default="stacked")
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
+    """Every city the studio works from."""
 
     def __str__(self):
         return self.heading or "Locations"
@@ -48,7 +45,6 @@ class VisitingSection(SectionHeading, TimeStampedModel):
     """How to arrange a visit while there is no published street address."""
 
     body = models.TextField(blank=True)
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE_DEEP)
 
     def __str__(self):
         return self.heading or "Visiting"

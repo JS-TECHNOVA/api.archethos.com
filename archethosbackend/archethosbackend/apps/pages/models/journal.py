@@ -11,11 +11,11 @@ from django.db import models
 from archethosbackend.apps.core.models import OrderedItemModel, TimeStampedModel
 
 from .base import SectionedPage
-from .shared import CTASection, HeroSection, SectionHeading, Tone, section
+from .shared import CTASection, HeroSection, SectionHeading, section
 
 
 class JournalFeaturedSection(SectionHeading, TimeStampedModel):
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
+    """The entries worth starting with."""
 
     def __str__(self):
         return self.heading or "Featured writing"
@@ -44,7 +44,6 @@ class JournalFeaturedItem(OrderedItemModel, TimeStampedModel):
 class JournalListSection(SectionHeading, TimeStampedModel):
     """Every published post, newest first. Not curated by design."""
 
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE_DEEP)
     page_size = models.PositiveSmallIntegerField(default=12)
     show_categories = models.BooleanField(default=True)
 

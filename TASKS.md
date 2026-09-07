@@ -367,3 +367,22 @@ Replaced the generic CMS with one model per page. Structure is code; content is 
 - [x] Refresh and password change limited
 - [x] `CACHE_URL` — production refuses to boot on a per-process cache
 - [x] Every rate an env var; `django_ratelimit` installed so its checks run
+
+---
+
+## Phase 15 — Presentation out of the schema `[x] COMPLETE`
+
+- [x] Removed `HeroSection.variant`, 19 `tone` fields and three `layout` fields —
+      every one duplicated a value the page component already hardcodes
+- [x] Removed the `Tone` and `HeroVariant` enums with them
+- [x] Kept what is genuinely editorial: `autoplay_seconds`, `show_filter`,
+      `statement_lines`, `title_lines`, `MissionVisionBlock.side`
+- [x] Kept `content.Project.layout` — per record, not per page, and
+      `project-grid.jsx` reads it
+- [x] Serializers, seed copy and tests follow; 302 tests pass
+
+**Follow-up (frontend, not done)**
+
+- [ ] `HeroEditor` still renders a Variant dropdown and several editors render a
+      Background select. They post fields the API now ignores, so nothing breaks —
+      but they are exactly the dead controls this phase removed from the schema

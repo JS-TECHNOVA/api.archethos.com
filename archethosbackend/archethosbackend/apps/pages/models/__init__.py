@@ -74,13 +74,11 @@ from .shared import (
     CTASection,
     HeroSection,
     HeroSlide,
-    HeroVariant,
     ProcessSection,
     ProcessStep,
     RichTextBlock,
     RichTextSection,
     SectionHeading,
-    Tone,
     section,
 )
 
@@ -118,13 +116,11 @@ __all__ = [
     "CTASection",
     "HeroSection",
     "HeroSlide",
-    "HeroVariant",
     "ProcessSection",
     "ProcessStep",
     "RichTextBlock",
     "RichTextSection",
     "SectionHeading",
-    "Tone",
     "section",
     # home
     "DesignBuildPoint",

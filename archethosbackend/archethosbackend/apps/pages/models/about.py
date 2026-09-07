@@ -17,7 +17,6 @@ from .shared import (
     HeroSection,
     ProcessSection,
     SectionHeading,
-    Tone,
     section,
 )
 
@@ -26,7 +25,6 @@ class StudioStorySection(SectionHeading, TimeStampedModel):
     """How the studio came to work the way it does."""
 
     body = models.TextField(blank=True)
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
 
     media = models.ForeignKey(
         "media_library.MediaAsset",
@@ -47,8 +45,6 @@ class MissionVisionSection(TimeStampedModel):
     structurally identical and the design alternates their image side, which is
     per-block configuration rather than a property of either one.
     """
-
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE_DEEP)
 
     def __str__(self):
         return "Mission and vision"
@@ -138,7 +134,6 @@ class PhilosophySection(SectionHeading, TimeStampedModel):
         blank=True,
         help_text="One string per rendered line of the statement.",
     )
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.INK)
 
     def __str__(self):
         return self.heading or "Philosophy"
@@ -159,10 +154,7 @@ class PhilosophyPoint(OrderedItemModel, TimeStampedModel):
 
 
 class AboutPresenceSection(SectionHeading, TimeStampedModel):
-    LAYOUT_CHOICES = [("grid", "Grid"), ("stacked", "Stacked")]
-
-    layout = models.CharField(max_length=16, choices=LAYOUT_CHOICES, default="stacked")
-    tone = models.CharField(max_length=16, choices=Tone.choices, default=Tone.BONE)
+    """Where the studio works, on the about page."""
 
     def __str__(self):
         return self.heading or "Our presence"

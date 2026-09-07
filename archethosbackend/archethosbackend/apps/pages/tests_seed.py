@@ -178,9 +178,9 @@ class PageTests(SeedTestCase):
                     self.assertEqual(page.missing_sections(), [])
 
     def test_the_home_hero_carries_all_three_slides(self):
+        """Three slides is the fact. Whether they advance is the component's
+        business — there is no `variant` column to assert against."""
         hero = HomePage.objects.get().hero
-        self.assertEqual(hero.variant, "SLIDER")
-
         slides = list(hero.slides.all())
         self.assertEqual(len(slides), 3)
         self.assertEqual(slides[0].heading, "Spaces shaped around the way you live.")
