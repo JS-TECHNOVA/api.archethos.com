@@ -24,7 +24,7 @@ from archethosbackend.apps.api.generics import (
 from archethosbackend.apps.api.permissions import HasModelPermission
 
 from .models import MediaAsset
-from .services import replace_file
+from .services import detach_and_delete, replace_file
 from .serializers import (
     MediaAssetDetailSerializer,
     MediaAssetListSerializer,
@@ -106,14 +106,23 @@ class MediaDetailAPIView(AdminRetrieveUpdateDestroyAPIView):
         tags=["admin:media"],
         summary="Delete a media asset",
         description=(
-            "Returns 409 with the list of referencing objects if the asset is "
-            "still in use anywhere."
+            "Always succeeds. References are detached first: an optional image "
+            "field is blanked and its record kept, while a record that exists "
+            "only to show this asset — a hero slide, a gallery item — is removed "
+            "with it. The response lists both. Call `usage/` first if you want "
+            "to warn someone before doing it."
         ),
+        responses={200: None},
     )
     def delete(self, request, *args, **kwargs):
-        # ProtectedError is translated to a 409 naming the referents by the
-        # envelope exception handler, so no special handling is needed here.
-        return super().delete(request, *args, **kwargs)
+        # The database keeps PROTECT on every media FK; this is the deliberate
+        # override, and it reports what it took with it rather than returning a
+        # bare 204 that hides the damage.
+        asset = self.get_object()
+        summary = detach_and_delete(asset)
+
+        self.envelope_message = "Media deleted"
+        return Response({"deleted": True, **summary}, status=status.HTTP_200_OK)
 
 
 class MediaUploadAPIView(APIView):

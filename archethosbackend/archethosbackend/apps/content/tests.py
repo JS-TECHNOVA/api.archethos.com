@@ -250,16 +250,40 @@ class AdminContentTests(ContentTestCase):
         project.refresh_from_db()
         self.assertEqual(project.cover_image, media)
 
-    def test_in_use_media_cannot_be_deleted(self):
+    def test_deleting_in_use_media_detaches_it_rather_than_refusing(self):
+        """Deleting an image no longer takes the project with it.
+
+        The database keeps PROTECT — nothing else may cascade a media row away —
+        but the delete endpoint detaches first, on purpose. The project is about
+        a building; the cover image is one of its fields, so the field is blanked
+        and the record stays.
+        """
         media = self.make_media()
-        Project.objects.create(title="Uses It", cover_image=media)
+        project = Project.objects.create(title="Uses It", cover_image=media)
 
         response = self.client_.delete(
             reverse("v1:admin:media-detail", args=[media.pk])
         )
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.json()["code"], "protected")
-        self.assertIn("Uses It", response.json()["message"])
+        self.assertEqual(response.status_code, 200, response.content)
+
+        project.refresh_from_db()
+        self.assertIsNone(project.cover_image_id)
+        self.assertEqual(project.title, "Uses It")
+
+    def test_media_still_cannot_be_removed_by_a_side_effect(self):
+        """PROTECT is intact at the database level.
+
+        Only the delete endpoint may detach a media row. A cascade arriving from
+        somewhere else must still be refused, or an image could disappear from a
+        live page as a by-product of an unrelated delete.
+        """
+        from django.db.models import ProtectedError
+
+        media = self.make_media()
+        Project.objects.create(title="Uses It", cover_image=media)
+
+        with self.assertRaises(ProtectedError):
+            media.delete()
 
     def test_list_is_light_and_detail_is_full(self):
         Project.objects.create(title="Villa")

@@ -320,8 +320,81 @@ class MediaDetailTests(MediaTestCase):
         response = self.client_.delete(
             reverse("v1:admin:media-detail", args=[self.asset.pk])
         )
-        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.status_code, 200)
         self.assertFalse(MediaAsset.objects.filter(pk=self.asset.pk).exists())
+
+        body = response.json()["data"]
+        self.assertTrue(body["deleted"])
+        self.assertEqual(body["cleared"], [])
+        self.assertEqual(body["removed"], [])
+
+    def test_delete_blanks_an_optional_reference_and_keeps_the_record(self):
+        """A project is about a building, not about its cover image."""
+        from archethosbackend.apps.content.models import Project
+
+        project = Project.objects.create(title="Villa", cover_image=self.asset)
+
+        response = self.client_.delete(
+            reverse("v1:admin:media-detail", args=[self.asset.pk])
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        project.refresh_from_db()
+        self.assertIsNone(project.cover_image_id)
+        self.assertEqual(project.title, "Villa", "the project must survive")
+
+        cleared = response.json()["data"]["cleared"]
+        self.assertIn(
+            {"model": "content.project", "field": "cover_image", "count": 1}, cleared
+        )
+
+    def test_delete_removes_a_record_that_exists_only_to_show_the_image(self):
+        """A hero slide without a picture is a hole on the page."""
+        from archethosbackend.apps.pages.models import HeroSection, HeroSlide
+
+        section = HeroSection.objects.create()
+        slide = HeroSlide.objects.create(
+            section=section, heading="Hi", media=self.asset, order=0
+        )
+
+        response = self.client_.delete(
+            reverse("v1:admin:media-detail", args=[self.asset.pk])
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(HeroSlide.objects.filter(pk=slide.pk).exists())
+        self.assertTrue(
+            HeroSection.objects.filter(pk=section.pk).exists(),
+            "the section survives; it just has one fewer slide",
+        )
+        self.assertEqual(
+            response.json()["data"]["removed"][0]["model"], "pages.heroslide"
+        )
+
+    def test_delete_reaches_through_a_protected_chain(self):
+        """A gallery item needs its image, and a section protects the item.
+
+        Both layers have to come away or the delete would still fail — which is
+        the case the recursive clear exists for.
+        """
+        from archethosbackend.apps.content.models import GalleryItem
+        from archethosbackend.apps.pages.models import (
+            GalleryGridItem,
+            GalleryGridSection,
+        )
+
+        item = GalleryItem.objects.create(title="Courtyard", image=self.asset)
+        section = GalleryGridSection.objects.create()
+        GalleryGridItem.objects.create(section=section, gallery_item=item, order=0)
+
+        response = self.client_.delete(
+            reverse("v1:admin:media-detail", args=[self.asset.pk])
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(GalleryItem.objects.filter(pk=item.pk).exists())
+        self.assertFalse(GalleryGridItem.objects.filter(section=section).exists())
+        self.assertTrue(GalleryGridSection.objects.filter(pk=section.pk).exists())
 
     def test_usage_finds_content_that_references_the_asset(self):
         """Regression.
@@ -352,7 +425,13 @@ class MediaDetailTests(MediaTestCase):
         self.assertIn(("heroslide", "media"), found)
 
     def test_usage_endpoint_agrees_with_what_delete_does(self):
-        """The two must never contradict each other."""
+        """`usage` is the warning, not a prediction of refusal.
+
+        Delete always succeeds now, so what these two owe each other is
+        different: whatever `usage` reports is what the delete will detach. If
+        they disagree, the admin warns about the wrong thing — or worse, warns
+        about nothing and takes content with it.
+        """
         from archethosbackend.apps.content.models import Project
 
         Project.objects.create(title="Villa", cover_image=self.asset)
@@ -365,7 +444,11 @@ class MediaDetailTests(MediaTestCase):
         response = self.client_.delete(
             reverse("v1:admin:media-detail", args=[self.asset.pk])
         )
-        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.status_code, 200)
+
+        result = response.json()["data"]
+        touched = len(result["cleared"]) + len(result["removed"])
+        self.assertEqual(touched, body["count"], "usage under-reported the damage")
 
     def test_usage_endpoint_reports_nothing_for_an_unused_asset(self):
         body = self.client_.get(

@@ -125,3 +125,83 @@ def normalise_tags(value, *, limit=25, max_length=50):
     if len(tags) > limit:
         raise ValidationError(f"Too many tags (limit {limit}).")
     return tags
+
+
+def _force_delete(obj):
+    """Delete `obj`, clearing whatever PROTECTs it first.
+
+    Recursive because the graph nests: an image may be required by a
+    GalleryItem, which is itself protected by the section items listing it.
+    Django names the blockers on the exception, so each round removes a layer.
+    """
+    from django.db.models import ProtectedError, RestrictedError
+
+    try:
+        obj.delete()
+    except ProtectedError as exc:
+        for protector in set(exc.protected_objects):
+            _force_delete(protector)
+        obj.delete()
+    except RestrictedError as exc:
+        for protector in set(exc.restricted_objects):
+            _force_delete(protector)
+        obj.delete()
+
+
+def detach_and_delete(asset):
+    """Delete a media asset, along with whatever is currently using it.
+
+    Media foreign keys are `PROTECT` in the database and stay that way — that is
+    what stops an image vanishing from a live page through some unrelated
+    cascade. This is the deliberate override, reached only when someone asks for
+    this asset, by id, to be deleted.
+
+    Two rules, chosen by whether the reference is optional:
+
+    * **Nullable** — the record is about something else and the image is one of
+      its fields, so the field is blanked and the record survives. A service
+      keeps its description; it loses its hero image.
+    * **Not nullable** — the record exists *to show that image* (a hero slide, a
+      gallery item), so it goes too. A slide with no picture is a hole on the
+      page; one fewer slide is not.
+
+    Returns what it changed, so the caller can report it rather than claiming a
+    bare success. All of it in one transaction: a half-detached asset would
+    leave content pointing at a row that no longer exists.
+    """
+    from django.apps import apps
+
+    from .models import MediaAsset
+
+    cleared, removed = [], []
+
+    with transaction.atomic():
+        for model in apps.get_models():
+            for field in model._meta.get_fields():
+                if not getattr(field, "many_to_one", False):
+                    continue
+                if field.related_model is not MediaAsset:
+                    continue
+
+                rows = model._default_manager.filter(**{field.name: asset})
+
+                if field.null:
+                    count = rows.update(**{field.name: None})
+                    if count:
+                        cleared.append(
+                            {
+                                "model": model._meta.label_lower,
+                                "field": field.name,
+                                "count": count,
+                            }
+                        )
+                else:
+                    for obj in list(rows):
+                        removed.append(
+                            {"model": model._meta.label_lower, "label": str(obj)}
+                        )
+                        _force_delete(obj)
+
+        asset.delete()
+
+    return {"cleared": cleared, "removed": removed}
