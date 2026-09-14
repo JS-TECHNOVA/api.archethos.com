@@ -15,7 +15,7 @@ VENV="$APP_DIR/venv"
 MANAGE="$VENV/bin/python $APP_DIR/archethosbackend/manage.py"
 SERVICE="archethos-api"
 
-export DJANGO_SETTINGS_MODULE="archethosbackend.settings.production"
+export DJANGO_SETTINGS_MODULE="archethosbackend.settings"
 
 say() { printf '\n\033[1m── %s\033[0m\n' "$1"; }
 

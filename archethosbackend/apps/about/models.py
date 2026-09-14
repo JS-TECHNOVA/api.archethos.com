@@ -1,0 +1,45 @@
+from django.db import models
+
+
+class AboutPage(models.Model):
+    SINGLETON_PK = 1
+    slider = models.ForeignKey("home.Slider", null=True, blank=True, on_delete=models.SET_NULL, related_name="about_pages")
+    work_process_group = models.ForeignKey("home.WorkProcessGroup", null=True, blank=True, on_delete=models.SET_NULL, related_name="about_pages")
+    studio_eyebrow = models.CharField(max_length=255, blank=True)
+    studio_title = models.CharField(max_length=255, blank=True)
+    studio_lead = models.TextField(blank=True)
+    studio_description = models.TextField(blank=True)
+    studio_supporting_text = models.TextField(blank=True)
+    studio_image = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="about_studio_images")
+    mission = models.TextField(blank=True)
+    vision = models.TextField(blank=True)
+    founder_eyebrow = models.CharField(max_length=255, blank=True)
+    founder_title = models.CharField(max_length=255, blank=True)
+    founder_message = models.JSONField(default=list, blank=True)
+    founder_name = models.CharField(max_length=255, blank=True)
+    founder_role = models.CharField(max_length=255, blank=True)
+    founder_credentials = models.CharField(max_length=255, blank=True)
+    founder_image = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="about_founder_images")
+    philosophy_eyebrow = models.CharField(max_length=255, blank=True)
+    philosophy_title = models.TextField(blank=True)
+    philosophy_description = models.TextField(blank=True)
+    philosophy_supporting_text = models.TextField(blank=True)
+    philosophy_image = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="about_philosophy_images")
+    philosophy_cta_label = models.CharField(max_length=100, blank=True)
+    philosophy_cta_url = models.CharField(max_length=255, blank=True)
+    presence_eyebrow = models.CharField(max_length=255, blank=True)
+    presence_title = models.CharField(max_length=255, blank=True)
+    presence_description = models.TextField(blank=True)
+    presence_cta_label = models.CharField(max_length=100, blank=True)
+    presence_cta_url = models.CharField(max_length=255, blank=True)
+    cta_title = models.CharField(max_length=255, blank=True)
+    cta_description = models.TextField(blank=True)
+    cta_image = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="about_cta_images")
+    cta_label = models.CharField(max_length=100, blank=True)
+    cta_url = models.CharField(max_length=255, blank=True)
+    meta_title = models.CharField(max_length=255, blank=True)
+    meta_description = models.TextField(blank=True)
+    meta_keywords = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(pk=1), name="about_page_singleton")]

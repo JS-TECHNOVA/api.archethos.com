@@ -25,7 +25,7 @@ User=ubuntu
 Group=www-data
 
 WorkingDirectory=/var/www/api.archethos.com/archethosbackend
-Environment="DJANGO_SETTINGS_MODULE=archethosbackend.settings.production"
+Environment="DJANGO_SETTINGS_MODULE=archethosbackend.settings"
 Environment="PYTHONUNBUFFERED=1"
 
 # systemd creates and owns this, and removes it on stop — so a crashed process

@@ -1,0 +1,2338 @@
+openapi: 3.0.3
+info:
+  title: Archethos API
+  version: 1.0.0
+paths:
+  /api/v1/blogs/:
+    get:
+      operationId: blogs_list
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: slug
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - archived
+          - draft
+          - published
+        description: |-
+          * `draft` - Draft
+          * `published` - Published
+          * `archived` - Archived
+      tags:
+      - Blogs
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBlogList'
+          description: ''
+    post:
+      operationId: blogs_create
+      tags:
+      - Blogs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Blog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Blog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Blog'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blog'
+          description: ''
+  /api/v1/blogs/{blog_id}/comments/:
+    get:
+      operationId: blogs_comments_list
+      parameters:
+      - in: query
+        name: author
+        schema:
+          type: integer
+      - in: path
+        name: blog_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog comments
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlogComment'
+          description: ''
+    post:
+      operationId: blogs_comments_create
+      parameters:
+      - in: path
+        name: blog_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog comments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlogComment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogComment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BlogComment'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogComment'
+          description: ''
+  /api/v1/blogs/{blog_id}/comments/{id}/:
+    get:
+      operationId: blogs_comments_retrieve
+      parameters:
+      - in: path
+        name: blog_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog comments
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogComment'
+          description: ''
+    put:
+      operationId: blogs_comments_update
+      parameters:
+      - in: path
+        name: blog_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog comments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlogComment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogComment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BlogComment'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogComment'
+          description: ''
+    patch:
+      operationId: blogs_comments_partial_update
+      parameters:
+      - in: path
+        name: blog_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog comments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogComment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogComment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogComment'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogComment'
+          description: ''
+    delete:
+      operationId: blogs_comments_destroy
+      parameters:
+      - in: path
+        name: blog_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog comments
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/blogs/{id}/:
+    get:
+      operationId: blogs_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blogs
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blog'
+          description: ''
+    put:
+      operationId: blogs_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blogs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Blog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Blog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Blog'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blog'
+          description: ''
+    patch:
+      operationId: blogs_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blogs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBlog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBlog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBlog'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blog'
+          description: ''
+    delete:
+      operationId: blogs_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blogs
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/blogs/page/:
+    get:
+      operationId: blogs_page_retrieve
+      tags:
+      - Blogs page
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogsPage'
+          description: ''
+    put:
+      operationId: blogs_page_update
+      tags:
+      - Blogs page
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlogsPage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogsPage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BlogsPage'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogsPage'
+          description: ''
+    patch:
+      operationId: blogs_page_partial_update
+      tags:
+      - Blogs page
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogsPage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogsPage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogsPage'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogsPage'
+          description: ''
+  /api/v1/categories/:
+    get:
+      operationId: categories_list
+      tags:
+      - Blog categories
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlogCategory'
+          description: ''
+    post:
+      operationId: categories_create
+      tags:
+      - Blog categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlogCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BlogCategory'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogCategory'
+          description: ''
+  /api/v1/categories/{id}/:
+    get:
+      operationId: categories_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog categories
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogCategory'
+          description: ''
+    put:
+      operationId: categories_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlogCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BlogCategory'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogCategory'
+          description: ''
+    patch:
+      operationId: categories_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBlogCategory'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogCategory'
+          description: ''
+    delete:
+      operationId: categories_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Blog categories
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/faqs/:
+    get:
+      operationId: faqs_list
+      parameters:
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      tags:
+      - FAQs
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FAQ'
+          description: ''
+    post:
+      operationId: faqs_create
+      tags:
+      - FAQs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+  /api/v1/faqs/{id}/:
+    get:
+      operationId: faqs_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - FAQs
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+    put:
+      operationId: faqs_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - FAQs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+    patch:
+      operationId: faqs_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - FAQs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFAQ'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFAQ'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFAQ'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+    delete:
+      operationId: faqs_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - FAQs
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/gallery/:
+    get:
+      operationId: gallery_retrieve
+      tags:
+      - Gallery
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gallery'
+          description: ''
+    put:
+      operationId: gallery_update
+      tags:
+      - Gallery
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Gallery'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Gallery'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Gallery'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gallery'
+          description: ''
+    patch:
+      operationId: gallery_partial_update
+      tags:
+      - Gallery
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedGallery'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedGallery'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedGallery'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gallery'
+          description: ''
+  /api/v1/gallery/categories/:
+    get:
+      operationId: gallery_categories_list
+      tags:
+      - Gallery categories
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GalleryCategory'
+          description: ''
+    post:
+      operationId: gallery_categories_create
+      tags:
+      - Gallery categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GalleryCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GalleryCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GalleryCategory'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryCategory'
+          description: ''
+  /api/v1/gallery/categories/{id}/:
+    get:
+      operationId: gallery_categories_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Gallery categories
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryCategory'
+          description: ''
+    put:
+      operationId: gallery_categories_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Gallery categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GalleryCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GalleryCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GalleryCategory'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryCategory'
+          description: ''
+    patch:
+      operationId: gallery_categories_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Gallery categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedGalleryCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedGalleryCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedGalleryCategory'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryCategory'
+          description: ''
+    delete:
+      operationId: gallery_categories_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Gallery categories
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/gallery/items/:
+    get:
+      operationId: gallery_items_list
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: integer
+      - in: query
+        name: is_visible
+        schema:
+          type: boolean
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - Gallery items
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedGalleryItemList'
+          description: ''
+    post:
+      operationId: gallery_items_create
+      tags:
+      - Gallery items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GalleryItem'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GalleryItem'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GalleryItem'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryItem'
+          description: ''
+  /api/v1/gallery/items/{id}/:
+    get:
+      operationId: gallery_items_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Gallery items
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryItem'
+          description: ''
+    put:
+      operationId: gallery_items_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Gallery items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GalleryItem'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GalleryItem'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GalleryItem'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryItem'
+          description: ''
+    patch:
+      operationId: gallery_items_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Gallery items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedGalleryItem'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedGalleryItem'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedGalleryItem'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryItem'
+          description: ''
+    delete:
+      operationId: gallery_items_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Gallery items
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/media/:
+    get:
+      operationId: media_list
+      parameters:
+      - in: query
+        name: media_type
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: source_type
+        schema:
+          type: string
+      - in: query
+        name: tags
+        schema:
+          type: string
+      - in: query
+        name: uploaded_by
+        schema:
+          type: integer
+      tags:
+      - media
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMediaAssetList'
+          description: ''
+    post:
+      operationId: media_create
+      tags:
+      - media
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaAsset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MediaAsset'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MediaAsset'
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaAsset'
+          description: ''
+  /api/v1/media/{id}/:
+    get:
+      operationId: media_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - media
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaAsset'
+          description: ''
+    put:
+      operationId: media_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - media
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaAsset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MediaAsset'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MediaAsset'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaAsset'
+          description: ''
+    patch:
+      operationId: media_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - media
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMediaAsset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMediaAsset'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMediaAsset'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaAsset'
+          description: ''
+    delete:
+      operationId: media_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - media
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/public/blog/page/:
+    get:
+      operationId: public_blog_page_retrieve
+      tags:
+      - Public blogs
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicBlogsPage'
+          description: ''
+  /api/v1/public/blogs/:
+    get:
+      operationId: public_blogs_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Public blogs
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicBlogList'
+          description: ''
+  /api/v1/public/blogs/{slug}/:
+    get:
+      operationId: public_blogs_retrieve
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - Public blogs
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicBlog'
+          description: ''
+  /api/v1/public/gallery/:
+    get:
+      operationId: public_gallery_list
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Public gallery
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPublicGalleryItemList'
+          description: ''
+  /api/v1/public/gallery/page/:
+    get:
+      operationId: public_gallery_page_retrieve
+      tags:
+      - Public gallery
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicGalleryPage'
+          description: ''
+components:
+  schemas:
+    Blog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          oneOf:
+          - type: string
+            maxLength: 220
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+        excerpt:
+          type: string
+        content:
+          type: string
+        category:
+          type: integer
+          nullable: true
+        category_detail:
+          allOf:
+          - $ref: '#/components/schemas/BlogCategory'
+          readOnly: true
+        featured_image:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        tags:
+          type: string
+          maxLength: 255
+        view_count:
+          type: integer
+          readOnly: true
+        meta_title:
+          type: string
+          maxLength: 255
+        meta_description:
+          type: string
+        meta_keywords:
+          type: string
+          maxLength: 255
+        author:
+          type: integer
+          readOnly: true
+        author_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlogComment'
+          readOnly: true
+      required:
+      - author
+      - author_name
+      - category_detail
+      - comments
+      - content
+      - created_at
+      - id
+      - title
+      - updated_at
+      - view_count
+    BlogCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+      required:
+      - id
+      - name
+    BlogComment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        blog:
+          type: integer
+          readOnly: true
+        author:
+          type: integer
+          readOnly: true
+        author_name:
+          type: string
+          readOnly: true
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - author
+      - author_name
+      - blog
+      - content
+      - created_at
+      - id
+      - updated_at
+    BlogsPage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        hero_title:
+          type: string
+          maxLength: 255
+        hero_description:
+          type: string
+        hero_image:
+          type: integer
+          nullable: true
+        hero_image_detail:
+          allOf:
+          - $ref: '#/components/schemas/MediaAsset'
+          readOnly: true
+        meta_title:
+          type: string
+          maxLength: 255
+        meta_description:
+          type: string
+        meta_keywords:
+          type: string
+          maxLength: 255
+        featured_blogs:
+          type: array
+          items:
+            type: integer
+        featured_blogs_detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeaturedBlog'
+          readOnly: true
+      required:
+      - featured_blogs_detail
+      - hero_image_detail
+      - id
+    FAQ:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        question:
+          type: string
+          maxLength: 255
+        answer:
+          type: string
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        is_active:
+          type: boolean
+      required:
+      - answer
+      - id
+      - question
+    FeaturedBlog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          oneOf:
+          - type: string
+            maxLength: 220
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+        excerpt:
+          type: string
+        featured_image:
+          type: integer
+          nullable: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - id
+      - title
+    Gallery:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        hero_title:
+          type: string
+          maxLength: 255
+        hero_description:
+          type: string
+        hero_image:
+          type: integer
+          nullable: true
+        hero_image_detail:
+          allOf:
+          - $ref: '#/components/schemas/MediaAsset'
+          readOnly: true
+        meta_title:
+          type: string
+          maxLength: 255
+        meta_description:
+          type: string
+        meta_keywords:
+          type: string
+          maxLength: 255
+      required:
+      - hero_image_detail
+      - id
+    GalleryCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+      required:
+      - id
+      - name
+    GalleryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category:
+          type: integer
+        category_detail:
+          allOf:
+          - $ref: '#/components/schemas/GalleryCategory'
+          readOnly: true
+        asset:
+          type: integer
+          nullable: true
+        asset_detail:
+          allOf:
+          - $ref: '#/components/schemas/MediaAsset'
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        is_visible:
+          type: boolean
+        added_at:
+          type: string
+          format: date-time
+          readOnly: true
+        added_by:
+          type: integer
+          readOnly: true
+          nullable: true
+      required:
+      - added_at
+      - added_by
+      - asset_detail
+      - category
+      - category_detail
+      - id
+      - title
+    MediaAsset:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        file:
+          type: string
+          format: uri
+          nullable: true
+        thumbnail_file:
+          type: string
+          format: uri
+          nullable: true
+        source:
+          type: string
+          format: uri
+        thumbnail_url:
+          type: string
+          format: uri
+        media_type:
+          type: string
+          readOnly: true
+        source_type:
+          type: string
+          readOnly: true
+        external_url:
+          type: string
+          format: uri
+          readOnly: true
+        external_id:
+          type: string
+          readOnly: true
+        file_name:
+          type: string
+          readOnly: true
+        mime_type:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        alt_text:
+          type: string
+          maxLength: 255
+        caption:
+          type: string
+          maxLength: 500
+        description:
+          type: string
+        tags:
+          type: string
+        media_location:
+          type: string
+          readOnly: true
+          nullable: true
+        youtube_url:
+          type: string
+          format: uri
+          writeOnly: true
+        video_url:
+          type: string
+          format: uri
+          writeOnly: true
+        uploaded_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - external_id
+      - external_url
+      - file_name
+      - id
+      - media_location
+      - media_type
+      - mime_type
+      - source_type
+      - uploaded_by
+    PaginatedBlogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Blog'
+    PaginatedGalleryItemList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GalleryItem'
+    PaginatedMediaAssetList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaAsset'
+    PaginatedPublicBlogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicBlog'
+    PaginatedPublicGalleryItemList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicGalleryItem'
+    PatchedBlog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          oneOf:
+          - type: string
+            maxLength: 220
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+        excerpt:
+          type: string
+        content:
+          type: string
+        category:
+          type: integer
+          nullable: true
+        category_detail:
+          allOf:
+          - $ref: '#/components/schemas/BlogCategory'
+          readOnly: true
+        featured_image:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        tags:
+          type: string
+          maxLength: 255
+        view_count:
+          type: integer
+          readOnly: true
+        meta_title:
+          type: string
+          maxLength: 255
+        meta_description:
+          type: string
+        meta_keywords:
+          type: string
+          maxLength: 255
+        author:
+          type: integer
+          readOnly: true
+        author_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlogComment'
+          readOnly: true
+    PatchedBlogCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+    PatchedBlogComment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        blog:
+          type: integer
+          readOnly: true
+        author:
+          type: integer
+          readOnly: true
+        author_name:
+          type: string
+          readOnly: true
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedBlogsPage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        hero_title:
+          type: string
+          maxLength: 255
+        hero_description:
+          type: string
+        hero_image:
+          type: integer
+          nullable: true
+        hero_image_detail:
+          allOf:
+          - $ref: '#/components/schemas/MediaAsset'
+          readOnly: true
+        meta_title:
+          type: string
+          maxLength: 255
+        meta_description:
+          type: string
+        meta_keywords:
+          type: string
+          maxLength: 255
+        featured_blogs:
+          type: array
+          items:
+            type: integer
+        featured_blogs_detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeaturedBlog'
+          readOnly: true
+    PatchedFAQ:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        question:
+          type: string
+          maxLength: 255
+        answer:
+          type: string
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        is_active:
+          type: boolean
+    PatchedGallery:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        hero_title:
+          type: string
+          maxLength: 255
+        hero_description:
+          type: string
+        hero_image:
+          type: integer
+          nullable: true
+        hero_image_detail:
+          allOf:
+          - $ref: '#/components/schemas/MediaAsset'
+          readOnly: true
+        meta_title:
+          type: string
+          maxLength: 255
+        meta_description:
+          type: string
+        meta_keywords:
+          type: string
+          maxLength: 255
+    PatchedGalleryCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+    PatchedGalleryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category:
+          type: integer
+        category_detail:
+          allOf:
+          - $ref: '#/components/schemas/GalleryCategory'
+          readOnly: true
+        asset:
+          type: integer
+          nullable: true
+        asset_detail:
+          allOf:
+          - $ref: '#/components/schemas/MediaAsset'
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        is_visible:
+          type: boolean
+        added_at:
+          type: string
+          format: date-time
+          readOnly: true
+        added_by:
+          type: integer
+          readOnly: true
+          nullable: true
+    PatchedMediaAsset:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        file:
+          type: string
+          format: uri
+          nullable: true
+        thumbnail_file:
+          type: string
+          format: uri
+          nullable: true
+        source:
+          type: string
+          format: uri
+        thumbnail_url:
+          type: string
+          format: uri
+        media_type:
+          type: string
+          readOnly: true
+        source_type:
+          type: string
+          readOnly: true
+        external_url:
+          type: string
+          format: uri
+          readOnly: true
+        external_id:
+          type: string
+          readOnly: true
+        file_name:
+          type: string
+          readOnly: true
+        mime_type:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        alt_text:
+          type: string
+          maxLength: 255
+        caption:
+          type: string
+          maxLength: 500
+        description:
+          type: string
+        tags:
+          type: string
+        media_location:
+          type: string
+          readOnly: true
+          nullable: true
+        youtube_url:
+          type: string
+          format: uri
+          writeOnly: true
+        video_url:
+          type: string
+          format: uri
+          writeOnly: true
+        uploaded_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PublicBlog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          oneOf:
+          - type: string
+            maxLength: 220
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+        excerpt:
+          type: string
+        featured_image:
+          type: integer
+          nullable: true
+        featured_image_detail:
+          allOf:
+          - $ref: '#/components/schemas/PublicMedia'
+          readOnly: true
+        tags:
+          type: string
+          maxLength: 255
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - featured_image_detail
+      - id
+      - title
+    PublicBlogsPage:
+      type: object
+      properties:
+        hero_title:
+          type: string
+          maxLength: 255
+        hero_description:
+          type: string
+        hero_image:
+          type: integer
+          nullable: true
+        hero_image_detail:
+          allOf:
+          - $ref: '#/components/schemas/PublicMedia'
+          readOnly: true
+        meta_title:
+          type: string
+          maxLength: 255
+        meta_description:
+          type: string
+        meta_keywords:
+          type: string
+          maxLength: 255
+        featured_blogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicBlog'
+          readOnly: true
+      required:
+      - featured_blogs
+      - hero_image_detail
+    PublicGalleryCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+      required:
+      - id
+      - name
+    PublicGalleryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category:
+          type: integer
+        category_detail:
+          allOf:
+          - $ref: '#/components/schemas/PublicGalleryCategory'
+          readOnly: true
+        asset:
+          type: integer
+          nullable: true
+        asset_detail:
+          allOf:
+          - $ref: '#/components/schemas/PublicMedia'
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        added_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - added_at
+      - asset_detail
+      - category
+      - category_detail
+      - id
+      - title
+    PublicGalleryPage:
+      type: object
+      properties:
+        hero_title:
+          type: string
+          maxLength: 255
+        hero_description:
+          type: string
+        hero_image:
+          type: integer
+          nullable: true
+        hero_image_detail:
+          allOf:
+          - $ref: '#/components/schemas/PublicMedia'
+          readOnly: true
+        meta_title:
+          type: string
+          maxLength: 255
+        meta_description:
+          type: string
+        meta_keywords:
+          type: string
+          maxLength: 255
+      required:
+      - hero_image_detail
+    PublicMedia:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        source:
+          type: string
+          nullable: true
+          readOnly: true
+        thumbnail_url:
+          type: string
+          nullable: true
+          readOnly: true
+        media_type:
+          type: string
+          maxLength: 20
+        title:
+          type: string
+          maxLength: 255
+        alt_text:
+          type: string
+          maxLength: 255
+      required:
+      - id
+      - source
+      - thumbnail_url
+    StatusEnum:
+      enum:
+      - draft
+      - published
+      - archived
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `published` - Published
+        * `archived` - Archived
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token

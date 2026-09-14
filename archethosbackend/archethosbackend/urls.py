@@ -1,41 +1,48 @@
-"""Root URL configuration."""
+"""Root URL configuration for the reset project."""
 
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
-from drf_spectacular.views import (
-    SpectacularAPIView,
-    SpectacularRedocView,
-    SpectacularSwaggerView,
-)
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.permissions import AllowAny
 
-from archethosbackend.apps.api.views import api_not_found, api_server_error, health
+from apps.core.views import api_not_found, api_server_error, health
+
+
+class SwaggerView(SpectacularSwaggerView):
+    schema = None
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+
+class SchemaView(SpectacularAPIView):
+    schema = None
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
 
 urlpatterns = [
-    # Django Admin is for development and superuser rescue only; the REST API is
-    # the CMS (DEVELOPMENT_PLAN.md §12 roadmap).
-    path("django-admin/", admin.site.urls),
+    path("admin/", admin.site.urls),
     path("health/", health, name="health"),
-    path("api/v1/", include("archethosbackend.apps.api.v1.urls")),
-    path("api/v1/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path(
-        "api/v1/schema/docs/",
-        SpectacularSwaggerView.as_view(url_name="schema"),
-        name="swagger-ui",
-    ),
-    path(
-        "api/v1/schema/redoc/",
-        SpectacularRedocView.as_view(url_name="schema"),
-        name="redoc",
-    ),
+    path("api/v1/auth/", include("apps.accounts.urls")),
+    path("api/v1/", include("apps.core.urls")),
+    path("api/v1/media/", include("apps.media_library.urls")),
+    path("api/v1/public/", include("apps.public_api.urls")),
+    path("api/v1/", include("apps.blogs.urls")),
+    path("api/v1/", include("apps.projects.urls")),
+    path("api/v1/", include("apps.services.urls")),
+    path("api/v1/", include("apps.home.urls")),
+    path("api/v1/", include("apps.about.urls")),
+    path("api/v1/", include("apps.contact.urls")),
+    path("api/v1/", include("apps.pages.urls")),
+    path("api/v1/", include("apps.master.urls")),
+    path("api/schema/", SchemaView.as_view(), name="schema"),
+    path("api/docs/", SwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 ]
 
 if settings.DEBUG:
-    # In production the media root is served by the web server / CDN, not Django.
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-# Unmatched /api/ URLs and unhandled 500s answer with the JSON envelope rather
-# than Django's HTML error pages.
 handler404 = api_not_found
 handler500 = api_server_error
