@@ -6,6 +6,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema
+
+from .serializers import CSRFResponseSerializer, LoginRequestSerializer, LoginResponseSerializer, MeResponseSerializer, RefreshResponseSerializer
 
 
 def set_auth_cookies(response, refresh):
@@ -16,15 +19,16 @@ def set_auth_cookies(response, refresh):
         "domain": settings.AUTH_COOKIE_DOMAIN,
     }
     response.set_cookie(settings.AUTH_COOKIE_ACCESS_NAME, str(refresh.access_token), path="/api/", **cookie_options)
-    response.set_cookie(settings.AUTH_COOKIE_REFRESH_NAME, str(refresh), path="/api/auth/", **cookie_options)
+    response.set_cookie(settings.AUTH_COOKIE_REFRESH_NAME, str(refresh), path="/api/v1/auth/", **cookie_options)
     return response
 
 
+@extend_schema(tags=["Authentication"])
 class LoginView(APIView):
-    schema = None
     authentication_classes = []
     permission_classes = [AllowAny]
 
+    @extend_schema(request=LoginRequestSerializer, responses={200: LoginResponseSerializer})
     def post(self, request):
         user = authenticate(
             request,
@@ -36,11 +40,12 @@ class LoginView(APIView):
         return set_auth_cookies(Response({"id": user.id, "username": user.username}), RefreshToken.for_user(user))
 
 
+@extend_schema(tags=["Authentication"])
 class RefreshView(APIView):
-    schema = None
     authentication_classes = []
     permission_classes = [AllowAny]
 
+    @extend_schema(request=None, responses={200: RefreshResponseSerializer})
     def post(self, request):
         raw_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_NAME)
         if not raw_token:
@@ -52,21 +57,24 @@ class RefreshView(APIView):
         return set_auth_cookies(Response({"refreshed": True}), refresh)
 
 
+@extend_schema(tags=["Authentication"])
 class LogoutView(APIView):
-    schema = None
+    authentication_classes = []
     permission_classes = [AllowAny]
 
+    @extend_schema(request=None, responses={204: None})
     def post(self, request):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         response.delete_cookie(settings.AUTH_COOKIE_ACCESS_NAME, path="/api/", domain=settings.AUTH_COOKIE_DOMAIN)
-        response.delete_cookie(settings.AUTH_COOKIE_REFRESH_NAME, path="/api/auth/", domain=settings.AUTH_COOKIE_DOMAIN)
+        response.delete_cookie(settings.AUTH_COOKIE_REFRESH_NAME, path="/api/v1/auth/", domain=settings.AUTH_COOKIE_DOMAIN)
         return response
 
 
+@extend_schema(tags=["Authentication"])
 class MeView(APIView):
-    schema = None
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=MeResponseSerializer)
     def get(self, request):
         user = request.user
         return Response({
@@ -82,10 +90,11 @@ class MeView(APIView):
         })
 
 
+@extend_schema(tags=["Authentication"])
 class CSRFView(APIView):
-    schema = None
     authentication_classes = []
     permission_classes = [AllowAny]
 
+    @extend_schema(responses=CSRFResponseSerializer)
     def get(self, request):
         return Response({"csrftoken": get_token(request)})
