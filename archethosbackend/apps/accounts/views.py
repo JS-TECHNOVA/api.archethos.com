@@ -4,13 +4,20 @@ from django.contrib.admin.models import LogEntry
 from django.conf import settings
 from django.middleware.csrf import get_token
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema
 
 from .serializers import AuditLogSerializer, CSRFResponseSerializer, GroupSerializer, LoginRequestSerializer, LoginResponseSerializer, MeResponseSerializer, PermissionSerializer, RefreshResponseSerializer, StaffUserSerializer
+
+
+class StaffUserPermission(BasePermission):
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_staff:
+            return False
+        return request.method in ("GET", "HEAD", "OPTIONS") or request.user.is_superuser
 
 
 def set_auth_cookies(response, refresh):
@@ -104,14 +111,14 @@ class CSRFView(APIView):
 
 @extend_schema(tags=["Users"])
 class StaffUserListCreateAPIView(generics.ListCreateAPIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [StaffUserPermission]
     queryset = get_user_model().objects.filter(is_staff=True).prefetch_related("groups")
     serializer_class = StaffUserSerializer
 
 
 @extend_schema(tags=["Users"])
 class StaffUserDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [StaffUserPermission]
     queryset = get_user_model().objects.filter(is_staff=True).prefetch_related("groups")
     serializer_class = StaffUserSerializer
 

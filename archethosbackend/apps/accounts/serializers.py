@@ -37,7 +37,7 @@ class CSRFResponseSerializer(serializers.Serializer):
 
 
 class StaffUserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True, min_length=8)
+    password = serializers.CharField(write_only=True, required=False, min_length=8)
     groups = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all(), many=True, required=False)
 
     class Meta:
@@ -48,6 +48,8 @@ class StaffUserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         groups = validated_data.pop("groups", [])
         password = validated_data.pop("password", None)
+        if not password:
+            raise serializers.ValidationError({"password": "A password is required when creating a user."})
         user = self.Meta.model(is_staff=True, **validated_data)
         user.set_password(password)
         user.save()
