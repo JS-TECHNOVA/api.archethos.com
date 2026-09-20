@@ -15,16 +15,16 @@ class ProjectPagination(PageNumberPagination):
 
 @extend_schema(tags=["Projects"])
 class ProjectListCreateAPIView(generics.ListCreateAPIView):
-    queryset = Project.objects.select_related("category", "cover_image")
+    queryset = Project.objects.select_related("category", "cover_image").prefetch_related("services")
     serializer_class = ProjectSerializer
     pagination_class = ProjectPagination
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["category", "project_type", "status", "is_featured", "slug"]
+    filterset_fields = ["category", "status", "is_featured", "slug"]
 
 
 @extend_schema(tags=["Projects"])
 class ProjectDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Project.objects.select_related("category", "cover_image").prefetch_related("gallery__asset", "detailed_stages__media")
+    queryset = Project.objects.select_related("category", "cover_image").prefetch_related("services", "gallery__asset", "detailed_stages__media")
     serializer_class = ProjectSerializer
 
 
@@ -80,7 +80,11 @@ class ProjectDetailedStageDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 @extend_schema(tags=["Projects page"])
 class ProjectPageAPIView(generics.RetrieveUpdateAPIView):
-    queryset = ProjectPage.objects.select_related("hero_image")
+    queryset = ProjectPage.objects.select_related("hero_image").prefetch_related(
+        "featured_projects__category",
+        "featured_projects__cover_image",
+        "featured_projects__services",
+    )
     serializer_class = ProjectPageSerializer
 
     def get_object(self):

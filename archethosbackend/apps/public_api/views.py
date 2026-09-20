@@ -1,4 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema
 from rest_framework import filters, generics
 from rest_framework.pagination import PageNumberPagination
@@ -7,7 +8,7 @@ from rest_framework.views import APIView
 
 from apps.blogs.models import Blog, BlogsPage
 from apps.master.models import FAQ, Gallery, GalleryItem
-from apps.projects.models import Project, ProjectPage
+from apps.projects.models import Project, ProjectDetailedStage, ProjectPage
 from apps.services.models import Service, ServicesPage
 from apps.home.models import HomePage
 from apps.about.models import AboutPage
@@ -54,7 +55,7 @@ class PublicBlogsPageAPIView(generics.RetrieveAPIView):
     serializer_class = PublicBlogsPageSerializer
 
     def get_object(self):
-        page, _ = BlogsPage.objects.select_related("hero_image").get_or_create(pk=BlogsPage.SINGLETON_PK)
+        page, _ = BlogsPage.objects.select_related("hero_image").prefetch_related("featured_blogs__category", "featured_blogs__featured_image").get_or_create(pk=BlogsPage.SINGLETON_PK)
         return page
 
 
@@ -64,11 +65,15 @@ class PublicBlogListAPIView(generics.ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = PublicBlogSerializer
     pagination_class = PublicPagination
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["category"]
     search_fields = ["title", "excerpt", "content", "tags"]
 
     def get_queryset(self):
-        return Blog.objects.filter(status="published").select_related("featured_image")
+        queryset = Blog.objects.filter(status="published").select_related("category", "featured_image")
+        if self.request.query_params.get("exclude_featured", "").lower() in {"1", "true", "yes"}:
+            queryset = queryset.exclude(featured_on_blogs_pages__pk=BlogsPage.SINGLETON_PK)
+        return queryset
 
 
 @extend_schema(tags=["Public blogs"])
@@ -79,7 +84,7 @@ class PublicBlogDetailAPIView(generics.RetrieveAPIView):
     lookup_field = "slug"
 
     def get_queryset(self):
-        return Blog.objects.filter(status="published").select_related("featured_image")
+        return Blog.objects.filter(status="published").select_related("category", "featured_image")
 
 
 @extend_schema(tags=["Public gallery"])
@@ -114,7 +119,11 @@ class PublicProjectPageAPIView(generics.RetrieveAPIView):
     serializer_class = PublicProjectPageSerializer
 
     def get_object(self):
-        page, _ = ProjectPage.objects.select_related("hero_image").get_or_create(pk=ProjectPage.SINGLETON_PK)
+        page, _ = ProjectPage.objects.select_related("hero_image").prefetch_related(
+            "featured_projects__category",
+            "featured_projects__cover_image",
+            "featured_projects__services",
+        ).get_or_create(pk=ProjectPage.SINGLETON_PK)
         return page
 
 
@@ -125,11 +134,13 @@ class PublicProjectListAPIView(generics.ListAPIView):
     serializer_class = PublicProjectSerializer
     pagination_class = PublicPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ["category", "project_type", "is_featured"]
+    filterset_fields = ["category", "is_featured"]
     search_fields = ["title", "short_description", "description", "location", "project_status", "services"]
 
     def get_queryset(self):
-        return Project.objects.filter(status="published").select_related("category", "cover_image")
+        return Project.objects.filter(status="published").select_related(
+            "category", "cover_image"
+        ).prefetch_related("services")
 
 
 @extend_schema(tags=["Public projects"])
@@ -140,7 +151,16 @@ class PublicProjectDetailAPIView(generics.RetrieveAPIView):
     lookup_field = "slug"
 
     def get_queryset(self):
-        return Project.objects.filter(status="published").select_related("category", "cover_image").prefetch_related("gallery__asset", "detailed_stages__media")
+        return Project.objects.filter(status="published").select_related(
+            "category", "cover_image"
+        ).prefetch_related(
+            "services",
+            "gallery__asset",
+            Prefetch(
+                "detailed_stages",
+                queryset=ProjectDetailedStage.objects.filter(is_active=True).select_related("media"),
+            ),
+        )
 
 
 @extend_schema(tags=["Public services"])
@@ -162,7 +182,7 @@ class PublicServiceDetailAPIView(generics.RetrieveAPIView):
     lookup_field = "slug"
 
     def get_queryset(self):
-        return Service.objects.filter(is_visible=True).select_related("hero_image", "index_image").prefetch_related("gallery", "work_processes")
+        return Service.objects.filter(is_active=True).select_related("image").prefetch_related("gallery__asset", "work_stages__media")
 
 
 @extend_schema(tags=["Public home"])
@@ -173,8 +193,8 @@ class PublicHomePageAPIView(generics.RetrieveAPIView):
 
     def get_object(self):
         page, _ = HomePage.objects.prefetch_related(
-            "sliders", "selected_gallery_items", "work_process_group__steps", "services_group__services", "projects_group__projects", "gallery_group__gallery_items", "counters_group__counters", "content_groups__media", "content_groups__secondary_media"
-        ).get_or_create(pk=HomePage.SINGLETON_PK)
+            "sliders", "selected_work", "gallery"
+        ).select_related("featured_project", "featured_service").get_or_create(pk=HomePage.SINGLETON_PK)
         return page
 
 
@@ -185,9 +205,7 @@ class PublicAboutPageAPIView(generics.RetrieveAPIView):
     serializer_class = PublicAboutPageSerializer
 
     def get_object(self):
-        page, _ = AboutPage.objects.select_related(
-            "slider__media", "work_process_group", "studio_image", "founder_image", "philosophy_image", "cta_image"
-        ).prefetch_related("work_process_group__steps").get_or_create(pk=AboutPage.SINGLETON_PK)
+        page, _ = AboutPage.objects.get_or_create(pk=AboutPage.SINGLETON_PK)
         return page
 
 

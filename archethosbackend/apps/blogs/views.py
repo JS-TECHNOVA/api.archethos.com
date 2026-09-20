@@ -33,11 +33,11 @@ class BlogDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 @extend_schema(tags=["Blogs page"])
 class BlogsPageAPIView(generics.RetrieveUpdateAPIView):
-    queryset = BlogsPage.objects.select_related("hero_image")
+    queryset = BlogsPage.objects.select_related("hero_image").prefetch_related("featured_blogs__category", "featured_blogs__featured_image")
     serializer_class = BlogsPageSerializer
 
     def get_object(self):
-        page, _ = BlogsPage.objects.get_or_create(pk=BlogsPage.SINGLETON_PK)
+        page, _ = self.queryset.get_or_create(pk=BlogsPage.SINGLETON_PK)
         return page
 
 

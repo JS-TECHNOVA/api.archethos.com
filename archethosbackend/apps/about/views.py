@@ -10,6 +10,5 @@ class AboutPageAPIView(generics.RetrieveUpdateAPIView):
     serializer_class = AboutPageSerializer
 
     def get_object(self):
-        page, _ = AboutPage.objects.select_related("slider").get_or_create(pk=AboutPage.SINGLETON_PK)
+        page, _ = AboutPage.objects.get_or_create(pk=AboutPage.SINGLETON_PK)
         return page
-

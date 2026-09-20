@@ -3,6 +3,7 @@ from django.utils.text import slugify
 from rest_framework import serializers
 
 from apps.media_library.serializers import MediaAssetSerializer
+from apps.services.serializers import ServiceSerializer
 
 from .models import Project, ProjectCategory, ProjectDetailedStage, ProjectGallery, ProjectPage
 
@@ -27,7 +28,7 @@ class ProjectDetailedStageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProjectDetailedStage
-        fields = ["id", "project", "eyebrow", "title", "description", "media", "media_detail", "order"]
+        fields = ["id", "project", "eyebrow", "title", "description", "media", "media_detail", "order", "is_active"]
         read_only_fields = ["project"]
 
 
@@ -36,12 +37,13 @@ class ProjectSerializer(serializers.ModelSerializer):
     cover_image_detail = MediaAssetSerializer(source="cover_image", read_only=True)
     gallery = ProjectGallerySerializer(many=True, read_only=True)
     detailed_stages = ProjectDetailedStageSerializer(many=True, read_only=True)
+    services_detail = ServiceSerializer(source="services", many=True, read_only=True)
 
     class Meta:
         model = Project
         fields = [
-            "id", "title", "slug", "category", "category_detail", "project_type", "location", "year", "project_status",
-            "services", "short_description", "description", "cover_image", "cover_image_detail", "layout",
+            "id", "title", "slug", "category", "category_detail", "location", "year", "project_status",
+            "services", "services_detail", "short_description", "description", "cover_image", "cover_image_detail",
             "is_featured", "status", "published_at", "meta_title", "meta_description", "meta_keywords",
             "created_at", "updated_at", "gallery", "detailed_stages",
         ]
@@ -71,7 +73,12 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 class ProjectPageSerializer(serializers.ModelSerializer):
     hero_image_detail = MediaAssetSerializer(source="hero_image", read_only=True)
+    featured_projects_detail = ProjectSerializer(source="featured_projects", many=True, read_only=True)
 
     class Meta:
         model = ProjectPage
-        fields = ["id", "hero_title", "hero_description", "hero_image", "hero_image_detail", "meta_title", "meta_description", "meta_keywords"]
+        fields = [
+            "id", "hero_title", "hero_description", "hero_image", "hero_image_detail",
+            "featured_projects", "featured_projects_detail",
+            "meta_title", "meta_description", "meta_keywords",
+        ]

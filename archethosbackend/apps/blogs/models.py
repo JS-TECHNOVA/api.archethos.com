@@ -33,6 +33,7 @@ class Blog(models.Model):
         related_name="featured_blogs",
     )
     status = models.CharField(max_length=10, choices=BLOG_STATUS_CHOICES, default="draft")
+    is_featured = models.BooleanField(default=False)
     tags = models.CharField(max_length=255, blank=True)
     view_count = models.PositiveIntegerField(default=0)
     meta_title = models.CharField(max_length=255, blank=True)
@@ -68,6 +69,11 @@ class BlogsPage(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="blogs_page_hero_images",
+    )
+    featured_blogs = models.ManyToManyField(
+        Blog,
+        blank=True,
+        related_name="featured_on_blogs_pages",
     )
     meta_title = models.CharField(max_length=255, blank=True)
     meta_description = models.TextField(blank=True)

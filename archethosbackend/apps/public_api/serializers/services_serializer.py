@@ -1,29 +1,37 @@
 from rest_framework import serializers
 
-from apps.services.models import Service, ServicesPage, ServicesWorkProcess
+from apps.services.models import Service, ServiceWorkStage, ServicesGallery, ServicesPage
 
 from .shared_serializer import PublicMediaSerializer
 
 
-class PublicServicesWorkProcessSerializer(serializers.ModelSerializer):
+class PublicServiceWorkStageSerializer(serializers.ModelSerializer):
+    media_detail = PublicMediaSerializer(source="media", read_only=True)
+
     class Meta:
-        model = ServicesWorkProcess
-        fields = ["number", "title", "description", "order"]
+        model = ServiceWorkStage
+        fields = ["eyebrow", "title", "description", "media", "media_detail", "order"]
+
+
+class PublicServicesGallerySerializer(serializers.ModelSerializer):
+    asset_detail = PublicMediaSerializer(source="asset", read_only=True)
+
+    class Meta:
+        model = ServicesGallery
+        fields = ["id", "asset", "asset_detail", "title", "caption", "description", "order"]
 
 
 class PublicServiceSerializer(serializers.ModelSerializer):
-    hero_image_detail = PublicMediaSerializer(source="hero_image", read_only=True)
-    index_image_detail = PublicMediaSerializer(source="index_image", read_only=True)
-    gallery_detail = PublicMediaSerializer(source="gallery", many=True, read_only=True)
-    work_processes = PublicServicesWorkProcessSerializer(many=True, read_only=True)
+    image_detail = PublicMediaSerializer(source="image", read_only=True)
+    gallery = PublicServicesGallerySerializer(many=True, read_only=True)
+    work_stages = PublicServiceWorkStageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Service
         fields = [
-            "number", "order", "title", "title_lines", "slug", "is_featured", "hero_heading",
-            "short_description", "description", "hero_image", "hero_image_detail", "index_image",
-            "index_image_detail", "sections", "process_eyebrow", "gallery", "gallery_detail",
-            "work_processes", "meta_title", "meta_description", "meta_keywords",
+            "id", "eyebrow", "title", "short_description", "slug", "description", "is_active",
+            "image", "image_detail", "how_it_moves", "gallery", "work_stages",
+            "meta_title", "meta_description", "meta_keywords",
         ]
 
 
@@ -32,14 +40,16 @@ class PublicServicesPageSerializer(serializers.ModelSerializer):
     services = serializers.SerializerMethodField()
 
     def get_services(self, obj):
-        queryset = Service.objects.filter(is_visible=True).select_related(
-            "hero_image", "index_image"
-        ).prefetch_related("gallery", "work_processes")
+        queryset = (
+            Service.objects.filter(is_active=True)
+            .select_related("image")
+            .prefetch_related("gallery__asset", "work_stages__media")
+        )
         return PublicServiceSerializer(queryset, many=True, context=self.context).data
 
     class Meta:
         model = ServicesPage
         fields = [
             "hero_eyebrow", "hero_title", "hero_description", "hero_image", "hero_image_detail",
-            "meta_title", "meta_description", "meta_keywords", "services",
+            "how_project_moves", "meta_title", "meta_description", "meta_keywords", "services",
         ]

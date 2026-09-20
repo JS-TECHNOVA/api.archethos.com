@@ -2,19 +2,14 @@ from rest_framework import serializers
 
 from apps.about.models import AboutPage
 
-from .home_serializer import PublicSliderSerializer
-from .home_serializer import PublicWorkProcessGroupSerializer
-from .shared_serializer import PublicMediaSerializer
-
-
 class PublicAboutPageSerializer(serializers.ModelSerializer):
-    slider_detail = PublicSliderSerializer(source="slider", read_only=True)
-    work_process_group_detail = PublicWorkProcessGroupSerializer(source="work_process_group", read_only=True)
-    studio_image_detail = PublicMediaSerializer(source="studio_image", read_only=True)
-    founder_image_detail = PublicMediaSerializer(source="founder_image", read_only=True)
-    philosophy_image_detail = PublicMediaSerializer(source="philosophy_image", read_only=True)
-    cta_image_detail = PublicMediaSerializer(source="cta_image", read_only=True)
-
     class Meta:
         model = AboutPage
-        fields = "__all__"
+        fields = [
+            "id", "hero_title", "hero_description", "hero_image",
+            "who_we_are_title", "who_we_are_description", "who_we_are_media",
+            "sections", "founders_section", "approach",
+            "philosophy_eyebrow", "philosophy_title", "philosophy_short_description",
+            "philosophy_description", "philosophy_media",
+            "meta_title", "meta_description", "meta_keywords",
+        ]

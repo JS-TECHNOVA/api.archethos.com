@@ -3,26 +3,40 @@ from rest_framework import serializers
 
 from apps.media_library.serializers import MediaAssetSerializer
 
-from .models import Service, ServicesPage, ServicesWorkProcess
+from .models import Service, ServiceWorkStage, ServicesGallery, ServicesPage
 
 
-class ServicesWorkProcessSerializer(serializers.ModelSerializer):
+class ServiceWorkStageSerializer(serializers.ModelSerializer):
+    media_detail = MediaAssetSerializer(source="media", read_only=True)
+
     class Meta:
-        model = ServicesWorkProcess
-        fields = ["id", "service", "number", "title", "description", "order"]
+        model = ServiceWorkStage
+        fields = ["id", "service", "eyebrow", "title", "description", "media", "media_detail", "order"]
+        read_only_fields = ["service"]
+
+
+class ServicesGallerySerializer(serializers.ModelSerializer):
+    asset_detail = MediaAssetSerializer(source="asset", read_only=True)
+
+    class Meta:
+        model = ServicesGallery
+        fields = ["id", "service", "asset", "asset_detail", "title", "caption", "description", "order"]
         read_only_fields = ["service"]
 
 
 class ServiceSerializer(serializers.ModelSerializer):
-    hero_image_detail = MediaAssetSerializer(source="hero_image", read_only=True)
-    index_image_detail = MediaAssetSerializer(source="index_image", read_only=True)
-    gallery_detail = MediaAssetSerializer(source="gallery", many=True, read_only=True)
-    work_processes = ServicesWorkProcessSerializer(many=True, read_only=True)
+    image_detail = MediaAssetSerializer(source="image", read_only=True)
+    gallery = ServicesGallerySerializer(many=True, read_only=True)
+    work_stages = ServiceWorkStageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Service
-        fields = "__all__"
-        read_only_fields = ["created_at", "updated_at", "work_processes"]
+        fields = [
+            "id", "eyebrow", "title", "short_description", "slug", "description", "is_active",
+            "image", "image_detail", "how_it_moves", "meta_title", "meta_description", "meta_keywords",
+            "created_at", "updated_at", "gallery", "work_stages",
+        ]
+        read_only_fields = ["created_at", "updated_at", "gallery", "work_stages"]
 
     def create(self, validated_data):
         validated_data["slug"] = self._unique_slug(validated_data.get("slug") or validated_data["title"])
@@ -44,4 +58,7 @@ class ServicesPageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ServicesPage
-        fields = "__all__"
+        fields = [
+            "id", "hero_eyebrow", "hero_title", "hero_description", "hero_image", "hero_image_detail",
+            "how_project_moves", "meta_title", "meta_description", "meta_keywords",
+        ]

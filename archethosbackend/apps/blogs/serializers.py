@@ -31,7 +31,7 @@ class BlogSerializer(serializers.ModelSerializer):
         model = Blog
         fields = [
             "id", "title", "slug", "excerpt", "content", "category", "category_detail", "featured_image",
-            "status", "tags", "view_count", "meta_title", "meta_description", "meta_keywords", "author",
+            "status", "is_featured", "tags", "view_count", "meta_title", "meta_description", "meta_keywords", "author",
             "author_name", "created_at", "updated_at", "published_at", "comments",
         ]
         read_only_fields = ["author", "view_count", "created_at", "updated_at", "comments"]
@@ -60,10 +60,12 @@ class BlogSerializer(serializers.ModelSerializer):
 
 class BlogsPageSerializer(serializers.ModelSerializer):
     hero_image_detail = MediaAssetSerializer(source="hero_image", read_only=True)
+    featured_blogs_detail = BlogSerializer(source="featured_blogs", many=True, read_only=True)
 
     class Meta:
         model = BlogsPage
         fields = [
             "id", "hero_title", "hero_description", "hero_image", "hero_image_detail",
+            "featured_blogs", "featured_blogs_detail",
             "meta_title", "meta_description", "meta_keywords",
         ]
