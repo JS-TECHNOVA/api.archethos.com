@@ -1,14 +1,16 @@
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.models import Group, Permission
+from django.contrib.admin.models import LogEntry
 from django.conf import settings
 from django.middleware.csrf import get_token
-from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import generics, status
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema
 
-from .serializers import CSRFResponseSerializer, LoginRequestSerializer, LoginResponseSerializer, MeResponseSerializer, RefreshResponseSerializer
+from .serializers import AuditLogSerializer, CSRFResponseSerializer, GroupSerializer, LoginRequestSerializer, LoginResponseSerializer, MeResponseSerializer, PermissionSerializer, RefreshResponseSerializer, StaffUserSerializer
 
 
 def set_auth_cookies(response, refresh):
@@ -98,3 +100,45 @@ class CSRFView(APIView):
     @extend_schema(responses=CSRFResponseSerializer)
     def get(self, request):
         return Response({"csrftoken": get_token(request)})
+
+
+@extend_schema(tags=["Users"])
+class StaffUserListCreateAPIView(generics.ListCreateAPIView):
+    permission_classes = [IsAdminUser]
+    queryset = get_user_model().objects.filter(is_staff=True).prefetch_related("groups")
+    serializer_class = StaffUserSerializer
+
+
+@extend_schema(tags=["Users"])
+class StaffUserDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdminUser]
+    queryset = get_user_model().objects.filter(is_staff=True).prefetch_related("groups")
+    serializer_class = StaffUserSerializer
+
+
+@extend_schema(tags=["Groups"])
+class GroupListCreateAPIView(generics.ListCreateAPIView):
+    permission_classes = [IsAdminUser]
+    queryset = Group.objects.prefetch_related("permissions")
+    serializer_class = GroupSerializer
+
+
+@extend_schema(tags=["Groups"])
+class GroupDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdminUser]
+    queryset = Group.objects.prefetch_related("permissions")
+    serializer_class = GroupSerializer
+
+
+@extend_schema(tags=["Permissions"])
+class PermissionListAPIView(generics.ListAPIView):
+    permission_classes = [IsAdminUser]
+    queryset = Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename")
+    serializer_class = PermissionSerializer
+
+
+@extend_schema(tags=["Audit log"])
+class AuditLogListAPIView(generics.ListAPIView):
+    permission_classes = [IsAdminUser]
+    queryset = LogEntry.objects.select_related("user", "content_type").order_by("-action_time")
+    serializer_class = AuditLogSerializer
