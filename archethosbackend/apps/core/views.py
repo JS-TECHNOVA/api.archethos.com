@@ -42,7 +42,7 @@ class EnquiryListAPIView(generics.ListCreateAPIView):
         return super().get_permissions()
 
 
-class EnquiryDetailAPIView(generics.RetrieveUpdateAPIView):
+class EnquiryDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Enquiry.objects.all()
     serializer_class = EnquirySerializer
 

@@ -24,7 +24,7 @@ class EnquirySerializer(serializers.ModelSerializer):
     class Meta:
         model = Enquiry
         fields = ["id", "name", "email", "phone", "project_type", "location", "scope", "source", "services", "message", "status", "created_at", "updated_at"]
-        read_only_fields = ["status", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
 
     def to_internal_value(self, data):
         data = data.copy()
