@@ -28,6 +28,7 @@ class HomePage(models.Model):
     selected_work_description = models.TextField(blank=True)
     selected_work = models.ManyToManyField("projects.Project", blank=True, related_name="selected_on_home_pages")
     gallery = models.ManyToManyField("master.GalleryItem", blank=True, related_name="home_pages")
+    section_content = models.JSONField(default=dict, blank=True)
     meta_title = models.CharField(max_length=255, blank=True)
     meta_description = models.TextField(blank=True)
     meta_keywords = models.CharField(max_length=255, blank=True)

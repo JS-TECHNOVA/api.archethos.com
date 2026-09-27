@@ -11,6 +11,7 @@ class Company(models.Model):
     address = models.TextField(blank=True)
     header_links = models.JSONField(default=list, blank=True)
     footer_links = models.JSONField(default=list, blank=True)
+    footer_other_links = models.JSONField(default=list, blank=True)
     locations = models.JSONField(default=list, blank=True)
     contacts = models.JSONField(default=list, blank=True)
     socials = models.JSONField(default=list, blank=True)
@@ -26,6 +27,7 @@ class Company(models.Model):
     smtp_username = models.CharField(max_length=255, blank=True)
     smtp_password = models.CharField(max_length=255, blank=True)
     smtp_from_email = models.EmailField(blank=True)
+    send_email_copy = models.EmailField(blank=True)
     smtp_use_tls = models.BooleanField(default=True)
     smtp_use_ssl = models.BooleanField(default=False)
 

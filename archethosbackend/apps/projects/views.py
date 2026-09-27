@@ -2,6 +2,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.filters import SearchFilter
 
 from .models import Project, ProjectCategory, ProjectDetailedStage, ProjectGallery, ProjectPage
 from .serializers import ProjectCategorySerializer, ProjectDetailedStageSerializer, ProjectGallerySerializer, ProjectPageSerializer, ProjectSerializer
@@ -18,7 +19,8 @@ class ProjectListCreateAPIView(generics.ListCreateAPIView):
     queryset = Project.objects.select_related("category", "cover_image").prefetch_related("services")
     serializer_class = ProjectSerializer
     pagination_class = ProjectPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    search_fields = ["title", "slug", "location"]
     filterset_fields = ["category", "status", "is_featured", "slug"]
 
 

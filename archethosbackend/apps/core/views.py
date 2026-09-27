@@ -10,6 +10,7 @@ from rest_framework import status
 
 from .models import Company, Enquiry, EnquiryReply
 from .serializers import CompanySerializer, EnquiryReplyCreateSerializer, EnquiryReplySerializer, EnquirySerializer
+from .emailing import send_enquiry_notification
 
 
 def health(request):
@@ -32,7 +33,14 @@ class CompanyAPIView(generics.RetrieveUpdateAPIView):
         return company
 
 
-class EnquiryListAPIView(generics.ListCreateAPIView):
+class EnquiryNotificationMixin:
+    def perform_create(self, serializer):
+        enquiry = serializer.save()
+        company, _ = Company.objects.get_or_create(pk=Company.SINGLETON_PK)
+        send_enquiry_notification(enquiry, company)
+
+
+class EnquiryListAPIView(EnquiryNotificationMixin, generics.ListCreateAPIView):
     queryset = Enquiry.objects.all()
     serializer_class = EnquirySerializer
 
@@ -54,7 +62,7 @@ class EnquiryDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         return super().retrieve(request, *args, **kwargs)
 
 
-class PublicEnquiryCreateAPIView(generics.CreateAPIView):
+class PublicEnquiryCreateAPIView(EnquiryNotificationMixin, generics.CreateAPIView):
     authentication_classes = []
     permission_classes = [AllowAny]
     serializer_class = EnquirySerializer

@@ -100,7 +100,7 @@ class BlogAPITests(APITestCase):
 
         filtered = self.client.get("/api/v1/faqs/?is_active=false")
         self.assertEqual(filtered.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(filtered.data), 1)
+        self.assertEqual(len(filtered.data["results"]), 1)
 
         FAQ.objects.create(question="How do projects begin?", answer="With a conversation.")
         public_client = APIClient()

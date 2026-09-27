@@ -4,12 +4,13 @@ from django.db import models
 class AboutPage(models.Model):
     SINGLETON_PK = 1
 
+    hero_eyebrow = models.CharField(max_length=255, blank=True)
     hero_title = models.CharField(max_length=255, blank=True)
     hero_description = models.TextField(blank=True)
-    hero_image = models.URLField(blank=True)
+    hero_media = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="about_hero_media")
 
     who_we_are_title = models.CharField(max_length=255, blank=True)
-    who_we_are_description = models.TextField(blank=True)
+    who_we_are_description = models.JSONField(default=dict, blank=True)
     who_we_are_media = models.URLField(blank=True)
 
     sections = models.JSONField(default=list, blank=True)

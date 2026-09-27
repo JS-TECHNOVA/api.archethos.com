@@ -1,6 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
-from rest_framework import generics
+from rest_framework import filters, generics
 from rest_framework.pagination import PageNumberPagination
 
 from .models import Blog, BlogCategory, BlogComment, BlogsPage
@@ -18,8 +18,9 @@ class BlogListCreateAPIView(generics.ListCreateAPIView):
     queryset = Blog.objects.select_related("author", "category", "featured_image").prefetch_related("comments__author")
     serializer_class = BlogSerializer
     pagination_class = BlogPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["category", "status", "slug"]
+    search_fields = ["title", "excerpt", "tags"]
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)

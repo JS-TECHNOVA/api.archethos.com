@@ -4,12 +4,11 @@ from apps.contact.models import ContactPage
 from apps.core.models import Company
 
 from .company_serializer import PublicCompanySerializer
-from .home_serializer import PublicSliderSerializer
 from .shared_serializer import PublicMediaSerializer
 
 
 class PublicContactPageSerializer(serializers.ModelSerializer):
-    slider_detail = PublicSliderSerializer(source="slider", read_only=True)
+    hero_media_detail = PublicMediaSerializer(source="hero_media", read_only=True)
     sidebar_image_detail = PublicMediaSerializer(source="sidebar_image", read_only=True)
     company = serializers.SerializerMethodField()
 
@@ -20,7 +19,8 @@ class PublicContactPageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactPage
         fields = [
-            "slider", "slider_detail", "form_eyebrow", "sidebar_image", "sidebar_image_detail",
-            "next_eyebrow", "next_title", "next_steps", "meta_title", "meta_description",
+            "hero_eyebrow", "hero_title", "hero_description", "hero_media", "hero_media_detail",
+            "sidebar_image", "sidebar_image_detail",
+            "next_section", "meta_title", "meta_description",
             "meta_keywords", "company",
         ]

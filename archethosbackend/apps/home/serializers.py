@@ -20,5 +20,5 @@ class HomePageSerializer(serializers.ModelSerializer):
         fields = [
             "id", "sliders", "sliders_detail", "featured_project", "featured_service",
             "home_counters", "design_build_process", "selected_work_title", "selected_work_description",
-            "selected_work", "gallery", "meta_title", "meta_description", "meta_keywords",
+            "selected_work", "gallery", "section_content", "meta_title", "meta_description", "meta_keywords",
         ]

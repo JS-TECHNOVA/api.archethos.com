@@ -10,7 +10,7 @@ PROJECT_WORK_STATUS_CHOICES = [
 ]
 class ProjectCategory(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
+    description = models.JSONField(default=dict, blank=True)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -34,7 +34,7 @@ class Project(models.Model):
         related_name="projects",
     )
     short_description = models.TextField(blank=True)
-    description = models.TextField(blank=True)
+    description = models.JSONField(default=dict, blank=True)
     cover_image = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="project_covers")
     is_featured = models.BooleanField(default=False)
     status = models.CharField(max_length=10, choices=PROJECT_STATUS_CHOICES, default="draft")
@@ -65,7 +65,7 @@ class ProjectDetailedStage(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="detailed_stages")
     eyebrow = models.CharField(max_length=255, blank=True)
     title = models.CharField(max_length=255)
-    description = models.TextField()
+    description = models.JSONField(default=dict, blank=True)
     media = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="project_stage_media")
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)

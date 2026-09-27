@@ -23,14 +23,16 @@ class BlogCommentSerializer(serializers.ModelSerializer):
 
 
 class BlogSerializer(serializers.ModelSerializer):
+    content = serializers.CharField(required=False, allow_blank=True)
     category_detail = BlogCategorySerializer(source="category", read_only=True)
+    featured_image_detail = MediaAssetSerializer(source="featured_image", read_only=True)
     comments = BlogCommentSerializer(many=True, read_only=True)
     author_name = serializers.CharField(source="author.username", read_only=True)
 
     class Meta:
         model = Blog
         fields = [
-            "id", "title", "slug", "excerpt", "content", "category", "category_detail", "featured_image",
+            "id", "title", "slug", "excerpt", "content", "category", "category_detail", "featured_image", "featured_image_detail",
             "status", "is_featured", "tags", "view_count", "meta_title", "meta_description", "meta_keywords", "author",
             "author_name", "created_at", "updated_at", "published_at", "comments",
         ]

@@ -6,6 +6,8 @@ class FAQ(models.Model):
     answer = models.TextField()
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["order", "id"]

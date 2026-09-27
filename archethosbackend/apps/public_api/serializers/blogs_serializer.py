@@ -18,7 +18,7 @@ class PublicBlogSerializer(serializers.ModelSerializer):
     class Meta:
         model = Blog
         fields = [
-            "id", "title", "slug", "excerpt", "category", "category_detail", "featured_image", "featured_image_detail",
+            "id", "title", "slug", "excerpt", "content", "category", "category_detail", "featured_image", "featured_image_detail",
             "tags", "published_at", "is_featured",
         ]
 

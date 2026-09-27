@@ -4,6 +4,7 @@ from django.db import models
 class Service(models.Model):
     eyebrow = models.CharField(max_length=255, blank=True)
     title = models.CharField(max_length=200)
+    tagline = models.TextField(blank=True)
     short_description = models.TextField(blank=True)
     slug = models.SlugField(max_length=220, unique=True, blank=True)
     description = models.JSONField(default=dict, blank=True)

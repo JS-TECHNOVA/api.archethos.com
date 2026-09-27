@@ -12,7 +12,7 @@ class PublicCompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
         fields = [
-            "name", "tagline", "gst", "address", "whatsapp_link", "header_links", "footer_links", "locations",
+            "name", "tagline", "gst", "address", "whatsapp_link", "header_links", "footer_links", "footer_other_links", "locations",
             "contacts", "socials", "logo", "logo_detail", "icon", "icon_detail", "meta_title",
             "meta_description", "meta_keywords", "head_inject_code", "body_inject_code",
         ]

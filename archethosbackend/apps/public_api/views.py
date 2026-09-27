@@ -193,8 +193,12 @@ class PublicHomePageAPIView(generics.RetrieveAPIView):
 
     def get_object(self):
         page, _ = HomePage.objects.prefetch_related(
-            "sliders", "selected_work", "gallery"
-        ).select_related("featured_project", "featured_service").get_or_create(pk=HomePage.SINGLETON_PK)
+            "sliders__media", "selected_work__services", "selected_work__category",
+            "selected_work__cover_image", "gallery__asset", "gallery__category",
+        ).select_related(
+            "featured_project__category", "featured_project__cover_image",
+            "featured_service__image",
+        ).get_or_create(pk=HomePage.SINGLETON_PK)
         return page
 
 
@@ -227,7 +231,7 @@ class PublicContactPageAPIView(generics.RetrieveAPIView):
     serializer_class = PublicContactPageSerializer
 
     def get_object(self):
-        page, _ = ContactPage.objects.select_related("slider__media", "sidebar_image").get_or_create(pk=ContactPage.SINGLETON_PK)
+        page, _ = ContactPage.objects.select_related("hero_media", "sidebar_image").get_or_create(pk=ContactPage.SINGLETON_PK)
         return page
 
 
