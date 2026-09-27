@@ -32,7 +32,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         fields = [
-            "id", "eyebrow", "title", "short_description", "slug", "description", "is_active",
+            "id", "eyebrow", "title", "tagline", "short_description", "slug", "description", "is_active",
             "image", "image_detail", "how_it_moves", "meta_title", "meta_description", "meta_keywords",
             "created_at", "updated_at", "gallery", "work_stages",
         ]

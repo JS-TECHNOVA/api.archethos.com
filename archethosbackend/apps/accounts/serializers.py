@@ -2,7 +2,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.admin.models import LogEntry
+
+from .models import AuditLog
 
 
 class LoginRequestSerializer(serializers.Serializer):
@@ -89,11 +90,10 @@ class PermissionSerializer(serializers.ModelSerializer):
 
 class AuditLogSerializer(serializers.ModelSerializer):
     actor = serializers.SerializerMethodField()
-    content_type_label = serializers.CharField(source="content_type.model", read_only=True)
 
     def get_actor(self, obj):
-        return obj.user.username if obj.user_id else "System"
+        return obj.actor.username if obj.actor_id else "System"
 
     class Meta:
-        model = LogEntry
-        fields = ["id", "actor", "action_time", "action_flag", "content_type", "content_type_label", "object_id", "object_repr", "change_message"]
+        model = AuditLog
+        fields = ["id", "actor", "action", "resource", "object_id", "object_repr", "changed_fields", "created_at"]

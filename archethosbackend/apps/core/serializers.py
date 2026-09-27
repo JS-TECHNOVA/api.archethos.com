@@ -21,10 +21,22 @@ class CompanySerializer(serializers.ModelSerializer):
 
 
 class EnquirySerializer(serializers.ModelSerializer):
+    message = serializers.CharField(max_length=1000)
+    consent = serializers.BooleanField(write_only=True, required=True)
+
     class Meta:
         model = Enquiry
-        fields = ["id", "name", "email", "phone", "project_type", "location", "scope", "source", "services", "message", "status", "created_at", "updated_at"]
+        fields = ["id", "name", "email", "phone", "project_type", "location", "scope", "source", "services", "message", "consent", "status", "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]
+
+    def create(self, validated_data):
+        validated_data.pop("consent", None)
+        return super().create(validated_data)
+
+    def validate_consent(self, value):
+        if not value:
+            raise serializers.ValidationError("Please consent to being contacted about your enquiry.")
+        return value
 
     def to_internal_value(self, data):
         data = data.copy()

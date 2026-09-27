@@ -1,15 +1,19 @@
 from rest_framework import serializers
 
-from apps.home.serializers import SliderSerializer
 from apps.media_library.serializers import MediaAssetSerializer
 
 from .models import ContactPage
 
 
 class ContactPageSerializer(serializers.ModelSerializer):
-    slider_detail = SliderSerializer(source="slider", read_only=True)
+    hero_media_detail = MediaAssetSerializer(source="hero_media", read_only=True)
     sidebar_image_detail = MediaAssetSerializer(source="sidebar_image", read_only=True)
 
     class Meta:
         model = ContactPage
-        fields = "__all__"
+        fields = [
+            "id", "hero_eyebrow", "hero_title", "hero_description", "hero_media",
+            "hero_media_detail", "sidebar_image",
+            "sidebar_image_detail", "next_section", "meta_title", "meta_description",
+            "meta_keywords",
+        ]

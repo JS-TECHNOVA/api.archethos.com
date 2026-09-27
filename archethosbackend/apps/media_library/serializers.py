@@ -1,5 +1,6 @@
 from urllib.parse import parse_qs, urlparse
 
+from django.db import transaction
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -59,12 +60,22 @@ class MediaAssetSerializer(serializers.ModelSerializer):
     thumbnail_url = ThumbnailUrlField(source="*", required=False)
     youtube_url = serializers.URLField(write_only=True, required=False)
     video_url = serializers.URLField(write_only=True, required=False)
+    file_size = serializers.SerializerMethodField()
+    original_filename = serializers.CharField(source="file_name", read_only=True)
+
+    def get_file_size(self, instance):
+        if not instance.file:
+            return None
+        try:
+            return instance.file.size
+        except (OSError, ValueError):
+            return None
 
     class Meta:
         model = MediaAsset
         fields = [
             "id", "file", "thumbnail_file", "source", "thumbnail_url", "media_type", "source_type",
-            "external_url", "external_id", "file_name", "mime_type", "title", "alt_text", "caption",
+            "external_url", "external_id", "file_name", "original_filename", "file_size", "mime_type", "title", "alt_text", "caption",
             "description", "tags", "media_location", "youtube_url", "video_url", "uploaded_by", "created_at",
         ]
         read_only_fields = ["uploaded_by", "created_at"]
@@ -98,11 +109,15 @@ class MediaAssetSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"thumbnail_file": "A thumbnail file requires an uploaded video file."})
         if has_file:
             media_type = self._file_metadata(attrs["file"])["media_type"]
+            if self.instance and self.instance.media_type and media_type != self.instance.media_type:
+                raise serializers.ValidationError({"file": f"Replacement must remain a {self.instance.media_type} file."})
             if attrs.get("thumbnail_file") and media_type != "video":
                 raise serializers.ValidationError({"thumbnail_file": "Only uploaded videos can have a thumbnail file."})
             if attrs.get("thumbnail_url"):
                 raise serializers.ValidationError({"thumbnail_url": "Use thumbnail_file for an uploaded video."})
         elif has_source:
+            if self.instance and self.instance.media_type and self.instance.media_type != "video":
+                raise serializers.ValidationError({"source": "Only video assets can use an external video URL."})
             if attrs.get("thumbnail_file"):
                 raise serializers.ValidationError({"thumbnail_file": "Use thumbnail_url for an external video."})
         elif not self.instance:
@@ -169,13 +184,16 @@ class MediaAssetSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         source_url = validated_data.get("external_url")
         if source_url:
-            thumbnail_url = validated_data.get("thumbnail_url")
+            thumbnail_url = validated_data.get("thumbnail_url") or (instance.thumbnail_url if self.instance else "")
             validated_data.update(self._external_video_metadata(source_url, thumbnail_url))
         else:
             validated_data.update(self._file_metadata(validated_data["file"]))
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
+        old_files = [(instance.file.storage, instance.file.name)] if instance.file else []
+        if instance.thumbnail_file:
+            old_files.append((instance.thumbnail_file.storage, instance.thumbnail_file.name))
         source_url = validated_data.get("external_url")
         if source_url:
             thumbnail_url = validated_data.get("thumbnail_url")
@@ -185,4 +203,9 @@ class MediaAssetSerializer(serializers.ModelSerializer):
             validated_data.update({"external_url": "", "external_id": ""})
             if self._file_metadata(validated_data["file"])["media_type"] != "video":
                 validated_data.update({"thumbnail_file": None, "thumbnail_url": ""})
-        return super().update(instance, validated_data)
+        asset = super().update(instance, validated_data)
+        retained_names = {asset.file.name if asset.file else "", asset.thumbnail_file.name if asset.thumbnail_file else ""}
+        for storage, name in old_files:
+            if name and name not in retained_names:
+                transaction.on_commit(lambda storage=storage, name=name: storage.delete(name))
+        return asset

@@ -1,6 +1,5 @@
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.models import Group, Permission
-from django.contrib.admin.models import LogEntry
 from django.conf import settings
 from django.middleware.csrf import get_token
 from rest_framework import generics, status
@@ -10,6 +9,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema
 
+from .models import AuditLog
 from .serializers import AuditLogSerializer, CSRFResponseSerializer, GroupSerializer, LoginRequestSerializer, LoginResponseSerializer, MeResponseSerializer, PermissionSerializer, RefreshResponseSerializer, StaffUserSerializer
 
 
@@ -147,5 +147,5 @@ class PermissionListAPIView(generics.ListAPIView):
 @extend_schema(tags=["Audit log"])
 class AuditLogListAPIView(generics.ListAPIView):
     permission_classes = [IsAdminUser]
-    queryset = LogEntry.objects.select_related("user", "content_type").order_by("-action_time")
+    queryset = AuditLog.objects.select_related("actor")
     serializer_class = AuditLogSerializer

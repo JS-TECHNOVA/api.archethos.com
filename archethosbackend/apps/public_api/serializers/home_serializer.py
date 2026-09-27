@@ -15,7 +15,7 @@ class PublicSliderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Slider
-        fields = ["eyebrow", "title", "description", "media", "media_detail", "primary_cta_label", "primary_cta_url", "secondary_cta_label", "secondary_cta_url", "order"]
+        fields = ["id", "eyebrow", "title", "description", "media", "media_detail", "primary_cta_label", "primary_cta_url", "secondary_cta_label", "secondary_cta_url", "order"]
 
 
 class PublicHomePageSerializer(serializers.ModelSerializer):
@@ -50,5 +50,5 @@ class PublicHomePageSerializer(serializers.ModelSerializer):
             "meta_title", "meta_description", "meta_keywords", "sliders", "featured_project", "featured_project_detail",
             "featured_service", "featured_service_detail", "services", "who_we_are", "home_counters",
             "design_build_process", "selected_work_title", "selected_work_description", "selected_work",
-            "selected_work_detail", "gallery", "gallery_detail",
+            "selected_work_detail", "gallery", "gallery_detail", "section_content",
         ]

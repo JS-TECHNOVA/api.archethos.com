@@ -1,6 +1,7 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated, SAFE_METHODS
 
 from drf_spectacular.utils import extend_schema
@@ -11,11 +12,20 @@ from apps.master.serializers import (
 )
 
 
+class FAQPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 @extend_schema(tags=["FAQs"])
 class FAQListCreateAPIView(generics.ListCreateAPIView):
     queryset = FAQ.objects.all()
     serializer_class = FAQSerializer
+    pagination_class = FAQPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["is_active"]
+    search_fields = ["question", "answer"]
 
 
 @extend_schema(tags=["FAQs"])
@@ -68,7 +78,8 @@ class GalleryItemListCreateAPIView(generics.ListCreateAPIView):
     queryset = GalleryItem.objects.none()
     serializer_class = GalleryItemSerializer
     pagination_class = GalleryPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    search_fields = ["title", "description"]
     filterset_fields = ["category", "is_visible"]
 
     def get_permissions(self):
