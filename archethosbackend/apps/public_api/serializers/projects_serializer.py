@@ -54,19 +54,32 @@ class PublicProjectPageSerializer(serializers.ModelSerializer):
     hero_image_detail = PublicMediaSerializer(source="hero_image", read_only=True)
     categories = serializers.SerializerMethodField()
     featured_projects = serializers.SerializerMethodField()
+    featured_project = serializers.SerializerMethodField()
 
     def get_categories(self, obj):
         return PublicProjectCategorySerializer(ProjectCategory.objects.all(), many=True).data
 
+    def _featured_project_data(self, obj):
+        if not hasattr(self, "_featured_projects_cache"):
+            projects = obj.featured_projects.filter(status="published").select_related(
+                "category", "cover_image"
+            ).prefetch_related("services")
+            self._featured_projects_cache = PublicProjectSerializer(
+                projects, many=True, context=self.context
+            ).data
+        return self._featured_projects_cache
+
     def get_featured_projects(self, obj):
-        projects = obj.featured_projects.filter(status="published").select_related(
-            "category", "cover_image"
-        ).prefetch_related("services")
-        return PublicProjectSerializer(projects, many=True, context=self.context).data
+        return self._featured_project_data(obj)
+
+    def get_featured_project(self, obj):
+        """Return the first selected project for singular-field consumers."""
+        projects = self._featured_project_data(obj)
+        return projects[0] if projects else None
 
     class Meta:
         model = ProjectPage
         fields = [
             "hero_title", "hero_description", "hero_image", "hero_image_detail",
-            "meta_title", "meta_description", "meta_keywords", "categories", "featured_projects",
+            "meta_title", "meta_description", "meta_keywords", "categories", "featured_projects", "featured_project",
         ]

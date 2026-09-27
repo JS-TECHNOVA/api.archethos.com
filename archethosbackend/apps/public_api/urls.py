@@ -29,7 +29,7 @@ urlpatterns = [
     path("gallery/page/", PublicGalleryPageAPIView.as_view()),
     path("gallery/", PublicGalleryItemListAPIView.as_view()),
 
-    path("project/page/", PublicProjectPageAPIView.as_view()),
+    path("page/projects/", PublicProjectPageAPIView.as_view()),
     path("projects/", PublicProjectListAPIView.as_view()),
     path("project/<slug:slug>/", PublicProjectDetailAPIView.as_view()),
 
