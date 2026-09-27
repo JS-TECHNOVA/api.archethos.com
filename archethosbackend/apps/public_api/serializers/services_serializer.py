@@ -10,7 +10,7 @@ class PublicServiceWorkStageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ServiceWorkStage
-        fields = ["eyebrow", "title", "description", "media", "media_detail", "order"]
+        fields = ["eyebrow", "title", "description", "media", "media_detail", "image_side", "order"]
 
 
 class PublicServicesGallerySerializer(serializers.ModelSerializer):
@@ -30,7 +30,7 @@ class PublicServiceSerializer(serializers.ModelSerializer):
         model = Service
         fields = [
             "id", "eyebrow", "title", "tagline", "short_description", "slug", "description", "is_active",
-            "image", "image_detail", "how_it_moves", "gallery", "work_stages",
+            "image", "image_detail", "how_it_moves", "sections", "gallery", "work_stages",
             "meta_title", "meta_description", "meta_keywords",
         ]
 

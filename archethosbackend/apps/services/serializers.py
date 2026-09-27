@@ -11,7 +11,7 @@ class ServiceWorkStageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ServiceWorkStage
-        fields = ["id", "service", "eyebrow", "title", "description", "media", "media_detail", "order"]
+        fields = ["id", "service", "eyebrow", "title", "description", "media", "media_detail", "image_side", "order"]
         read_only_fields = ["service"]
 
 
@@ -33,7 +33,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         model = Service
         fields = [
             "id", "eyebrow", "title", "tagline", "short_description", "slug", "description", "is_active",
-            "image", "image_detail", "how_it_moves", "meta_title", "meta_description", "meta_keywords",
+            "image", "image_detail", "how_it_moves", "sections", "meta_title", "meta_description", "meta_keywords",
             "created_at", "updated_at", "gallery", "work_stages",
         ]
         read_only_fields = ["created_at", "updated_at", "gallery", "work_stages"]

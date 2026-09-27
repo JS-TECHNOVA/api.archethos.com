@@ -8,6 +8,7 @@ class Service(models.Model):
     short_description = models.TextField(blank=True)
     slug = models.SlugField(max_length=220, unique=True, blank=True)
     description = models.JSONField(default=dict, blank=True)
+    sections = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     image = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="service_images")
     how_it_moves = models.JSONField(default=dict, blank=True)
@@ -22,11 +23,14 @@ class Service(models.Model):
 
 
 class ServiceWorkStage(models.Model):
+    IMAGE_SIDE_CHOICES = [("left", "Left"), ("right", "Right")]
+
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="work_stages")
     eyebrow = models.CharField(max_length=255, blank=True)
     title = models.CharField(max_length=255)
     description = models.JSONField(default=dict, blank=True)
     media = models.ForeignKey("media_library.MediaAsset", null=True, blank=True, on_delete=models.SET_NULL, related_name="service_stage_media")
+    image_side = models.CharField(max_length=5, choices=IMAGE_SIDE_CHOICES, blank=True, default="")
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
