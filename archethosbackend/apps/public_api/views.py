@@ -199,6 +199,8 @@ class PublicHomePageAPIView(generics.RetrieveAPIView):
         ).select_related(
             "featured_project__category", "featured_project__cover_image",
             "featured_service__image",
+        ).prefetch_related(
+            "featured_service__gallery__asset", "featured_service__work_stages__media",
         ).get_or_create(pk=HomePage.SINGLETON_PK)
         return page
 
