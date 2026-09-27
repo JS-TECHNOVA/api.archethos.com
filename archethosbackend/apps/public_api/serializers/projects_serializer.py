@@ -30,8 +30,16 @@ class PublicProjectDetailedStageSerializer(serializers.ModelSerializer):
 
 class PublicProjectSerializer(serializers.ModelSerializer):
     category_detail = PublicProjectCategorySerializer(source="category", read_only=True)
-    cover_image_detail = PublicMediaSerializer(source="cover_image", read_only=True)
+    cover_image_detail = serializers.SerializerMethodField()
     services_detail = PublicServiceSerializer(source="services", many=True, read_only=True)
+
+    def get_cover_image_detail(self, obj):
+        """Use the explicit cover, or the first gallery asset as a safe fallback."""
+        media = obj.cover_image
+        if media is None:
+            gallery_item = next((item for item in obj.gallery.all() if item.asset_id), None)
+            media = gallery_item.asset if gallery_item else None
+        return PublicMediaSerializer(media, context=self.context).data if media else None
 
     class Meta:
         model = Project
@@ -63,7 +71,7 @@ class PublicProjectPageSerializer(serializers.ModelSerializer):
         if not hasattr(self, "_featured_projects_cache"):
             projects = obj.featured_projects.filter(status="published").select_related(
                 "category", "cover_image"
-            ).prefetch_related("services")
+            ).prefetch_related("services", "gallery__asset")
             self._featured_projects_cache = PublicProjectSerializer(
                 projects, many=True, context=self.context
             ).data

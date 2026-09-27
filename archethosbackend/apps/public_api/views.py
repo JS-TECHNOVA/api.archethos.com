@@ -123,6 +123,7 @@ class PublicProjectPageAPIView(generics.RetrieveAPIView):
             "featured_projects__category",
             "featured_projects__cover_image",
             "featured_projects__services",
+            "featured_projects__gallery__asset",
         ).get_or_create(pk=ProjectPage.SINGLETON_PK)
         return page
 
@@ -140,7 +141,7 @@ class PublicProjectListAPIView(generics.ListAPIView):
     def get_queryset(self):
         return Project.objects.filter(status="published").select_related(
             "category", "cover_image"
-        ).prefetch_related("services")
+        ).prefetch_related("services", "gallery__asset")
 
 
 @extend_schema(tags=["Public projects"])
